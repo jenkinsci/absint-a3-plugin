@@ -1,0 +1,269 @@
+/*
+ * The MIT License
+ *
+ * Copyright (c) 2016, AbsInt Angewandte Informatik GmbH
+ * Author: Christian Huembert
+ * Email: huembert@absint.com
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+package com.absint.a3;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.Vector;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
+
+import hudson.model.TaskListener;
+
+public class XMLResultFileHandler {
+		
+	// Special APX Exception
+	private class XMLResultFileException extends Exception {
+		XMLResultFileException(String s) {
+		      super(s);
+		   }
+		}
+	
+	private TaskListener listener;	
+	private Document xmldoc;
+	private	File inputXMLFile;
+	
+	public static String required_a3version = "16.04i Build 267329";
+	
+	/**
+	 * Constructor
+	 * @param filename of the XML Result File
+	 * @param listener TaskListener for Console Output
+	 */
+	public XMLResultFileHandler(String filename, TaskListener listener){
+			
+		this.listener = listener;
+		
+		/* Need a Document Builder Factory */
+		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+		
+		try {
+			DocumentBuilder builder = factory.newDocumentBuilder();
+		
+			inputXMLFile = new File(filename);
+
+			xmldoc = builder.parse(inputXMLFile);
+			xmldoc.getDocumentElement().normalize();		
+		
+		} catch (ParserConfigurationException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (UnsupportedEncodingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			listener.getLogger().println("[IOException:] XML Result File <" + filename + "> was not found!");
+		} catch (SAXException e) {
+			listener.getLogger().println("[SAX/IOException:] XML Result File <" + filename + "> was not found!");
+		}
+				
+	}
+
+	
+	/***
+	 * Pretty Prints all the Results as side effect to the listener Logger
+	 * @param  failed_items - A Container that collects the IDs of all analysis items which failed
+	 * @return boolean 
+	 * 		   true  - if there was at least one failed analysis
+	 * 		   false - if there was no failed analysis
+	 */
+	public boolean prettyPrintResultsAndCollectFailedItems(Vector<String> failed_items) {
+		Element rootNode = xmldoc.getDocumentElement(); // must be results.
+		NodeList resultsList = rootNode.getElementsByTagName("result");
+
+		// resultlist must contain something!
+		try {
+			if (resultsList.getLength() < 1) {			
+					throw new XMLResultFileException("[XML Result Structure Error:] There must be at least one 'result' Entry in the XML result file");
+			}
+			
+			String formatString = "%-5s  %35s  %9s  %35s  %20s  %5s  %3s  %6s\n";
+
+			listener.getLogger().println ("\n================");
+			listener.getLogger().println ("Analysis Results");
+			listener.getLogger().println ("================");
+			listener.getLogger().format(formatString + "\n", "Type", "ID", "Time(sec)", "Result", "Expectation", "#Warn", "#Err", "Failed");
+
+		   
+			/* Iterate through each Result-Element */
+			for (int i=0; i<resultsList.getLength(); i++) {
+
+				String expectation   = "";
+				String result 		 = "";
+				
+				Element node = (Element) resultsList.item(i);
+
+				String analysisType  = shortenAnalysisType(node.getAttribute("type"));
+				String currentID 	 = node.getAttribute("id");
+				String analysisTime  = node.getAttribute("analysis_time");
+				String warning_count = node.getAttribute("warning_count");
+				String error_count   = node.getAttribute("error_count");
+				String failed_str    = node.getAttribute("analysis_status");
+				
+				// a3 XML Results File Version Check, the following three attributes require a3 version 16.04i and build > 266697
+				if (warning_count.equals("") || error_count.equals("") || failed_str.equals("")) {
+					throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible with a³ versions prior to " + required_a3version + "!\nRequest support@absint.com for latest a³ Version.\n");
+				}
+				
+				boolean failed       = (!failed_str.equals("success"));
+				failed_str    = "";
+				
+				if (!failed) {
+					try {							
+						// Get ChildNode "expectation"
+						NodeList expectationList = node.getElementsByTagName("expectation");
+						if (expectationList.getLength() == 1) {
+							// only if there was an expectation field check this item for status
+							Element expectationElem = (Element) expectationList.item(0);
+							if (!expectationElem.getTextContent().equals("success")) {
+								// FAILED expectation
+								// Determine the expected result there must be exactly one! TODO check stack!
+								Element expectedResult = (Element) node.getElementsByTagName("expected_result").item(0);
+								expectation = "FAILED (" + expectedResult.getTextContent() + ")";
+								failed_str = "><";  // failed expectation overwrites analysis_status == success!
+								failed_items.add(currentID);
+							} else {
+								expectation = "ok";
+							}
+						} else {
+							failed_items.add(currentID);
+							throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible (no 'expectation' tag found) with a³ versions prior to " + required_a3version + "!\n"+
+									 						 "                              Write to support@absint.com to request the latest a³ version.");
+							}
+				
+						// Depending on the Analysis Type read out different information:
+						switch(analysisType) {
+							case "TP":
+							case "aiT": 
+								String cycles = ((Element) node.getElementsByTagName("cycles").item(0)).getTextContent(); // There must be a cycles sub-node
+								String tunit = ((Element) node.getElementsByTagName("unit").item(0)).getTextContent(); // There must be a unit sub-node
+								String time = ((Element) node.getElementsByTagName("time").item(0)).getTextContent(); // There must be a time sub-node
+								result = (cycles.equals("-1")? "unbounded/infeasible" : cycles + " " + tunit + " = " + time);
+								break;
+							case "Stack":
+								NodeList maximaList = node.getElementsByTagName("maximum");
+								int maximaListLength = maximaList.getLength();
+								for (int j=0; j<maximaListLength;j++) {
+									Element elem = (Element) maximaList.item(j);
+									String svalue = elem.getTextContent();
+									String name  = elem.getAttribute("name");
+									result += name + "=" + svalue;
+									if (j!=(maximaListLength - 1)) {result += ",";}
+								}
+								if (maximaListLength > 0) { result += " bytes"; }
+								break;
+							case "RComb":
+								// First check if we have a <values> block, then we have to dive one level deeper: <values> -> <value>
+								NodeList valuesList = node.getElementsByTagName("values");
+								NodeList valueList = null;
+								if (valuesList.getLength() == 1) {
+									Element values = (Element) valuesList.item(0);
+									valueList = values.getElementsByTagName("value");
+								} else if (valuesList.getLength() == 0){
+									valueList = node.getElementsByTagName("value");
+								} else {
+									failed_items.add(currentID);
+									throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible (no 'value' tag found) with a³ versions prior to " + required_a3version + "!\n"+
+											 						 "                              Write to support@absint.com to request the latest a³ version.");
+								}
+	
+								int valueListLength = valueList.getLength();
+								if (valueListLength > 1) { result += "["; }
+								for (int j=0; j<valueListLength;j++) {
+									Element elem = (Element) valueList.item(j);
+									String value = elem.getTextContent();
+									String vunit  = elem.getAttribute("unit");
+									result += value + " " + vunit;
+									if (j!=(valueListLength - 1)) {result += ",";}
+								}
+								if (valueListLength > 1) { result += "]"; }
+								break;
+							case "Value":
+								break;
+								// ValueAnalyzer does not have further information, i.e. result stays "" and expectation gives the information.
+							default:
+								failed_items.add(currentID);
+								throw new XMLResultFileException("[XML Result Structure Error:] Analysis Type " + analysisType + " is not supported with this version of Jenkins plugin.\n"+
+										 "                              Write to support@absint.com to request an update.");
+						}
+					} catch (NullPointerException e)
+					{
+						failed_items.add(currentID);
+						throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible with a³ versions prior to " + required_a3version + "!\n"+
+														 "                              Write to support@absint.com to request the latest a3 version.");
+					}
+				} else {
+					// Analysis Status == fail (e.g. because of warnings/errors and high pedantic level!)
+					failed_str = "><";
+					failed_items.add(currentID);
+				}				
+				// Print Result Line!
+				listener.getLogger().format (formatString, analysisType, currentID, analysisTime, result, expectation, warning_count, error_count, failed_str );
+			} // end of for
+			
+		listener.getLogger().println();
+			
+		} catch (XMLResultFileException e) {
+				listener.getLogger().println(e.getMessage());
+		}
+				
+		return (failed_items.size() > 0);
+	} // end of member prettyPrint...
+
+
+	private String shortenAnalysisType(String type) {
+		String analysisType;
+		switch (type) {
+			case "aiT": analysisType = "aiT"; break;
+			case "TimingProfiler": analysisType = "TP"; break;
+			case "StackAnalyzer": analysisType = "Stack"; break;
+			case "ValueAnalyzer": analysisType = "Value"; break;
+			case "ResultCombinator": analysisType = "RComb"; break;
+			default: analysisType = type;		
+		}
+		return analysisType;
+	}
+
+
+	/**
+	* Returns XML Result File Object
+	* @return File - XML Result File Object
+	*/
+	public File getXMLResultFile() {
+		return this.inputXMLFile;
+	}
+
+}

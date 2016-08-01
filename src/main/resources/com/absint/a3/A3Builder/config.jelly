@@ -1,0 +1,41 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+  <!--
+    This jelly script is used for per-project configuration.
+
+    See global.jelly for a general discussion about jelly script.
+  -->
+
+
+  <f:section title="Basic Settings">
+
+  <f:entry title="Project File (APX)" field="project_file">
+    <f:textbox />
+  </f:entry>
+  <f:entry title="Analysis IDs" field="analysis_ids">
+    <f:textbox />
+  </f:entry>
+
+  <f:entry title="Let a³ fail a build according to failed expectations on XML result file OR according to ..." name="pedantic_level" field="pedantic_level">
+    <select name="pedantic_level">
+        <f:option value="apx" selected="${instance.getPedantic_level() == 'apx'}">pedantic level defined in project configuration</f:option>
+        <f:option value="warning" selected="${instance.getPedantic_level() == 'warning'}">errors and warnings (pedantic high)</f:option>
+        <f:option value="error" selected="${instance.getPedantic_level() == 'error'}">errors (pedantic middle)</f:option>
+        <f:option value="fatal" selected="${instance.getPedantic_level() == 'fatal'}">fatal errors (pedantic low)</f:option>
+     </select>
+  </f:entry>
+
+  </f:section>
+
+ <f:section title="Options">
+  <f:entry title="Copy report file to Jenkins workspace" field="copy_report_file">
+    <f:checkbox/>
+  </f:entry>
+
+  <f:entry title="Copy XML result file to Jenkins workspace" field="copy_result_file">
+    <f:checkbox/>
+  </f:entry>
+ 
+ </f:section>
+
+</j:jelly>
