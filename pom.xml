@@ -10,7 +10,7 @@
     <relativePath/>
   </parent>
   <groupId>com.absint</groupId>
-  <artifactId>a3</artifactId>
+  <artifactId>absint-a3</artifactId>
   <version>1.0.0</version>
   <packaging>hpi</packaging>
 
