@@ -143,7 +143,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	// The Formvalidator guarantees a correct naming of the IDs
     	String[] analyses = analysis_ids.split(",");
     	for (String id: analyses) {
-    		if(!id.equals("")) cmd += "-i " + id + " ";
+    		if(!id.trim().equals("")) cmd += "-i " + id + " ";
     	}
     	return cmd;
     }
@@ -454,7 +454,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
  **/
         public FormValidation doCheckAnalysis_ids(@QueryParameter String value)
                 throws IOException, ServletException {
-        	if (!value.equals("")) {
+        	if (value != null && !value.trim().equals("")) {
            		// The analysis IDs must be a comma-separated (or differently) list of analysis IDs
         		String[] itemList = value.split(",");
         		// Check for each item that it follows the a3 analysis ID naming scheme
