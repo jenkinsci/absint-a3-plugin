@@ -79,4 +79,9 @@
   </dependencies>
   -->
 
+  <scm>
+  	<url>https://github.com/jenkinsci/absint-a3-plugin</url>
+  	<connection>scm:git:ssh://github.com/jenkinsci/absint-a3-plugin.git</connection>
+  	<developerConnection>scm:git:ssh://git@github.com/jenkinsci/absint-a3-plugin.git</developerConnection>
+  </scm>
 </project>
