@@ -45,7 +45,7 @@ import hudson.model.TaskListener;
 public class XMLResultFileHandler {
 		
 	// Special APX Exception
-	private class XMLResultFileException extends Exception {
+	private static class XMLResultFileException extends Exception {
 		XMLResultFileException(String s) {
 		      super(s);
 		   }
@@ -55,7 +55,7 @@ public class XMLResultFileHandler {
 	private Document xmldoc;
 	private	File inputXMLFile;
 	
-	public static String required_a3version = "16.04i Build 267329";
+	public static final String required_a3version = "16.04i Build 267329";
 	
 	/**
 	 * Constructor
@@ -109,7 +109,7 @@ public class XMLResultFileHandler {
 					throw new XMLResultFileException("[XML Result Structure Error:] There must be at least one 'result' Entry in the XML result file");
 			}
 			
-			String formatString = "%-5s  %35s  %9s  %35s  %20s  %5s  %3s  %6s\n";
+			String formatString = "%-5s  %35s  %9s  %35s  %20s  %5s  %3s  %6s%n";
 
 			listener.getLogger().println ("\n================");
 			listener.getLogger().println ("Analysis Results");
@@ -122,6 +122,7 @@ public class XMLResultFileHandler {
 
 				String expectation   = "";
 				String result 		 = "";
+				StringBuffer result_buf;
 				
 				Element node = (Element) resultsList.item(i);
 
@@ -175,14 +176,16 @@ public class XMLResultFileHandler {
 							case "Stack":
 								NodeList maximaList = node.getElementsByTagName("maximum");
 								int maximaListLength = maximaList.getLength();
+								result_buf = new StringBuffer(result); // Use StringBuffer for String appending in loops 
 								for (int j=0; j<maximaListLength;j++) {
 									Element elem = (Element) maximaList.item(j);
 									String svalue = elem.getTextContent();
 									String name  = elem.getAttribute("name");
-									result += name + "=" + svalue;
-									if (j!=(maximaListLength - 1)) {result += ",";}
+									result_buf.append(name + "=" + svalue);
+									if (j!=(maximaListLength - 1)) {result_buf.append(",");}
 								}
-								if (maximaListLength > 0) { result += " bytes"; }
+								if (maximaListLength > 0) { result_buf.append(" bytes"); }
+								result = result_buf.toString();
 								break;
 							case "RComb":
 								// First check if we have a <values> block, then we have to dive one level deeper: <values> -> <value>
@@ -198,17 +201,18 @@ public class XMLResultFileHandler {
 									throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible (no 'value' tag found) with a³ versions prior to " + required_a3version + "!\n"+
 											 						 "                              Write to support@absint.com to request the latest a³ version.");
 								}
-	
+								result_buf = new StringBuffer(result); // Use StringBuffer for String appending in loops 
 								int valueListLength = valueList.getLength();
-								if (valueListLength > 1) { result += "["; }
+								if (valueListLength > 1) { result_buf.append("["); }
 								for (int j=0; j<valueListLength;j++) {
 									Element elem = (Element) valueList.item(j);
 									String value = elem.getTextContent();
 									String vunit  = elem.getAttribute("unit");
-									result += value + " " + vunit;
-									if (j!=(valueListLength - 1)) {result += ",";}
+									result_buf.append(value + " " + vunit);
+									if (j!=(valueListLength - 1)) {result_buf.append(",");}
 								}
-								if (valueListLength > 1) { result += "]"; }
+								if (valueListLength > 1) { result_buf.append("]"); }
+								result = result_buf.toString();
 								break;
 							case "Value":
 								break;

@@ -49,8 +49,8 @@ import java.util.regex.Pattern;
  * @author AbsInt Angewandte Informatik GmbH
  */
 public class A3Builder extends Builder implements SimpleBuildStep {
-    private final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
-    private final String BUILD_NR    = "1.0.0";
+    private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
+    private static final String BUILD_NR    = "1.0.0";
 
     private String project_file, analysis_ids, pedantic_level;
     private boolean copy_report_file, copy_result_file;
@@ -139,13 +139,14 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	File alauncherObj = new File(getDescriptor().getAlauncher());
     	String batch_param = "-b";
     	String pedanticLevel = (!this.pedantic_level.equals("apx") ? "--pedantic-level " + this.pedantic_level : "");
-    	String cmd = alauncherObj.toString() + " " + this.project_file + " " + batch_param + " " + reportFile + " " + resultFile + " " + pedanticLevel + " ";
+    	StringBuffer cmd_buf = new StringBuffer(alauncherObj.toString() + " " + this.project_file + " " + batch_param + " " + reportFile + " " + resultFile + " " + pedanticLevel + " ");
+    	
     	// The Formvalidator guarantees a correct naming of the IDs
     	String[] analyses = analysis_ids.split(",");
     	for (String id: analyses) {
-    		if(!id.trim().equals("")) cmd += "-i " + id + " ";
+    		if(!id.trim().equals("")) cmd_buf.append("-i " + id + " ");
     	}
-    	return cmd;
+    	return cmd_buf.toString();
     }
 
 
@@ -157,16 +158,16 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      */
     private String builda3CmdLineInteractive(Vector<String> failedItems) {
     	File alauncherObj = new File(getDescriptor().getAlauncher());
-    	String cmd = alauncherObj.toString() + " " + this.project_file;
+    	StringBuffer cmd_buf = new StringBuffer(alauncherObj.toString() + " " + this.project_file);
     	if (failedItems.size() > 0) {
     		String batch_param = "-B";
         	String pedanticHigh = "--pedantic-level warning";
-        	cmd +=  " " + pedanticHigh + " " + batch_param + " ";
+        	cmd_buf.append(" " + pedanticHigh + " " + batch_param + " ");
         	Iterator<String> iter = failedItems.iterator();
         	while(iter.hasNext())
-        		cmd += "-i " + iter.next() + " ";    		
+        		cmd_buf.append("-i " + iter.next() + " ");    		
     	}    	
-		return cmd;
+		return cmd_buf.toString();
 	}
 
 
@@ -190,11 +191,15 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             listener.getLogger().println("[A3 Builder Note:] Perform a³ Compatibility Check ... ");
             String checkcmd = (new File(getDescriptor().getAlauncher())).toString() + " -b " + target + " --version-file " + a3versionFileInfo.toString();
         	Proc check = launcher.launch(checkcmd, build.getEnvVars(), listener.getLogger(), workspace);
-	        int exitcode = check.join();          // wait for alauncher to finish
+	        check.join();          // wait for alauncher to finish
 	        boolean checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3version, a3versionFileInfo); 
 	        listener.getLogger().println(checkOK ? "[A3 Builder Note:] Compatibility Check [OK]" : "");
 	        // Delete the temporary generated version info file again.
-	        try { a3versionFileInfo.delete(); } catch (Exception e) {}; // If the deleting fails, just ignore it.
+	        try { 
+	        	a3versionFileInfo.delete(); 
+	        } catch (Exception e) {
+	        	listener.getLogger().println("[A3 Builder Info:] Temporary version file could not be deleted again.");
+	        }; // If the deleting fails, just ignore it.
 	        if (!checkOK) {
 	        	listener.getLogger().println("[A3 Builder Error:] This version of the " + PLUGIN_NAME + " requires an a³ for " + target + " version newer than " + XMLResultFileHandler.required_a3version + "!\n" +
 	        								 "                    Please contact support@absint.com to request an updated a³ for " + target + " version.");
@@ -330,12 +335,14 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      */
 	private boolean checkA3Compatibility(String required_a3version, File a3versionFileInfo) {
 		try {
-			FileReader     fr = new FileReader(a3versionFileInfo);
-			BufferedReader br = new BufferedReader(fr);
+            BufferedReader br = new BufferedReader(
+                    				new InputStreamReader(
+                    					new FileInputStream(a3versionFileInfo), "UTF-8" ));
 
 			String a3buildLine = br.readLine();  // read first line, looks like this: "This is a3 build 123456"
-			br.close(); fr.close();
+			br.close();
 
+			if (a3buildLine == null) return false;
 			return (extractBuildNumber(a3buildLine) >= extractBuildNumber(required_a3version));
 			
 		} catch (IOException e) {
@@ -367,19 +374,21 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	 // Now start copy process
     	 try {
     		 // Input File
-	    	 FileReader     fr = new FileReader(sourcefile);
-	    	 BufferedReader br = new BufferedReader(fr);
+	    	 BufferedReader br = new BufferedReader(
+	    			 				new InputStreamReader(
+	    			 					new FileInputStream(sourcefile), "UTF-8"));
 
 	    	 // Output File
-	    	 FileWriter fw = new FileWriter(destfile.getAbsoluteFile());
-	    	 BufferedWriter bw = new BufferedWriter(fw);
-
+	    	 BufferedWriter bw = new BufferedWriter(
+	    			 				new OutputStreamWriter(
+	    			 					new FileOutputStream(destfile.getAbsoluteFile()), "UTF-8"));
+	    			 
 	    	 // Copy Content
 	    	 while(br.ready()) {
 	    		 bw.write(br.readLine() + "\n");
 	    	 }
-	    	 bw.close();fr.close();
-	    	 br.close();fw.close();
+	    	 bw.close();
+	    	 br.close();
     	 } catch (FileNotFoundException e) {
     		 listener.getLogger().println("[A3 Builder FileNotFound Exception:] Source file " + src + " could not be found! Aborting copy process to Jenkins workspace.");
     	 } catch (IOException e) {

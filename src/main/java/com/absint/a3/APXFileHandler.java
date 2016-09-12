@@ -34,7 +34,7 @@ import java.io.*;
 public class APXFileHandler {
 
 	// Special APX Exception
-	private class APXFileException extends Exception {
+	private static class APXFileException extends Exception {
 		APXFileException(String s) {
 		      super(s);
 		   }
