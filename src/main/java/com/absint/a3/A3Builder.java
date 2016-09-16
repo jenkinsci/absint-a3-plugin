@@ -320,7 +320,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     /* Small Helper: Extracts Build Number in long from a string line ending with the build number */
     private long extractBuildNumber(String n) {
     	try {
-    		String buildstrs[] = n.split(" ");
+    		String buildstrs[] = n.split(":");
         	String buildstr = buildstrs[buildstrs.length-1];
         	return Integer.parseInt(buildstr);    	
     	} catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
@@ -338,8 +338,9 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             BufferedReader br = new BufferedReader(
                     				new InputStreamReader(
                     					new FileInputStream(a3versionFileInfo), "UTF-8" ));
-
-			String a3buildLine = br.readLine();  // read first line, looks like this: "This is a3 build 123456"
+            
+            for (int i=0; i < 2; i++) { br.readLine(); } // ignore the first 2 lines in version file 
+			String a3buildLine = br.readLine();  // read third line, looks like this: "This is a3 build 123456"
 			br.close();
 
 			if (a3buildLine == null) return false;
