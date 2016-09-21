@@ -55,7 +55,7 @@ public class XMLResultFileHandler {
 	private Document xmldoc;
 	private	File inputXMLFile;
 	
-	public static final String required_a3version = "Build: 268897";
+	public static final String required_a3version = "Build: 268982";
 	
 	/**
 	 * Constructor

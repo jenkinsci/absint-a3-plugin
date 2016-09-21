@@ -50,7 +50,7 @@ import java.util.regex.Pattern;
  */
 public class A3Builder extends Builder implements SimpleBuildStep {
     private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
-    private static final String BUILD_NR    = "1.0.0";
+    private static final String BUILD_NR    = "1.0.1";
 
     private String project_file, analysis_ids, pedantic_level;
     private boolean copy_report_file, copy_result_file;
@@ -189,7 +189,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             String target = apx.getTarget();
             File a3versionFileInfo = new File(workspace.toString() + "/" + "a3-"+target+"-version-b"+build.getNumber()+".info");
             listener.getLogger().println("[A3 Builder Note:] Perform a³ Compatibility Check ... ");
-            String checkcmd = (new File(getDescriptor().getAlauncher())).toString() + " -b " + target + " --version-file " + a3versionFileInfo.toString();
+            String checkcmd = (new File(getDescriptor().getAlauncher())).toString() + " -b " + target + " --version-file \"" + a3versionFileInfo.toString() + "\"";
         	Proc check = launcher.launch(checkcmd, build.getEnvVars(), listener.getLogger(), workspace);
 	        check.join();          // wait for alauncher to finish
 	        boolean checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3version, a3versionFileInfo); 
