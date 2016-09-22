@@ -50,20 +50,21 @@ import java.util.regex.Pattern;
  */
 public class A3Builder extends Builder implements SimpleBuildStep {
     private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
-    private static final String BUILD_NR    = "1.0.1";
+    private static final String BUILD_NR    = "1.0.2";
 
     private String project_file, analysis_ids, pedantic_level;
-    private boolean copy_report_file, copy_result_file;
+    private boolean copy_report_file, copy_result_file, skip_a3_analysis;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public A3Builder(String project_file, String analysis_ids, String pedantic_level, boolean copy_report_file, boolean copy_result_file)
+    public A3Builder(String project_file, String analysis_ids, String pedantic_level, boolean copy_report_file, boolean copy_result_file, boolean skip_a3_analysis)
     {
         this.project_file   = project_file;
         this.analysis_ids    = analysis_ids;
         this.pedantic_level = pedantic_level;
         this.copy_report_file = copy_report_file;
         this.copy_result_file = copy_result_file;
+        this.skip_a3_analysis = skip_a3_analysis;
     }
 
     /*
@@ -116,6 +117,14 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         return copy_result_file;
     }
 
+    /**
+     * Checks if "Skip a3 analysis run" option is set
+     *
+     * @return boolean
+     */
+    public boolean isSkip_a3_analysis() {
+        return skip_a3_analysis;
+    }
 
     /**
      * Small helper routine
@@ -180,14 +189,29 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	// Analysis run started. ID plugin in Jenkins output.
         listener.getLogger().println("\nThis is " + PLUGIN_NAME + " in version " + BUILD_NR);
 
+        if(this.skip_a3_analysis) {
+        	listener.getLogger().println("[A3 Builder Note:] a³ analysis run has been (temporarily) deactivated. Skipping analysis run.\n");
+        	return; // nothing to do, exit method.
+        }
+        
         // Let's parse the a3 project file
         listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + project_file);
         APXFileHandler apx = new APXFileHandler(project_file, listener);
 
+        // Generate an a3workspace subdirectory in the Jenkins workspace
+        FilePath a3workspace = new FilePath(workspace, "absint-a3-b" + build.getNumber());
+        try {
+			a3workspace.mkdirs();
+		} catch (IOException | InterruptedException e1) {
+			// subdirectory a3 workspace could not be created, use workspace
+			listener.getLogger().println("[A3 Builder Warning:] a3 workspace directory could not be created in Jenkins workspace. Output will be written to Jenkins workspace instead.");
+			a3workspace = workspace;
+		}
+
         try {        
             // Perform compatibility Check: Jenkins Plugin and a3
             String target = apx.getTarget();
-            File a3versionFileInfo = new File(workspace.toString() + "/" + "a3-"+target+"-version-b"+build.getNumber()+".info");
+            File a3versionFileInfo = new File(a3workspace.toString() + "/" + "a3-"+target+"-version-b"+build.getNumber()+".info");
             listener.getLogger().println("[A3 Builder Note:] Perform a³ Compatibility Check ... ");
             String checkcmd = (new File(getDescriptor().getAlauncher())).toString() + " -b " + target + " --version-file \"" + a3versionFileInfo.toString() + "\"";
         	Proc check = launcher.launch(checkcmd, build.getEnvVars(), listener.getLogger(), workspace);
@@ -216,13 +240,13 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	
 			//Generate temporary report/result file only if no report/result file entry in apx found
 			if (reportfile == null) {
-				reportfile = (new File(workspace.toString() + "/" + "a3-report-b" + build.getNumber()+".txt")).toString();
+				reportfile = (new File(a3workspace.toString() + "/" + "a3-report-b" + build.getNumber()+".txt")).toString();
 				reportfileParam = "--report-file \"" + reportfile + "\"" ;
 			} else {
 				reportfileParam = "";
 			}
 			if (resultfile == null) {
-				resultfile = (new File(workspace.toString() + "/" + "a3-xml-result-b" + build.getNumber()+".xml")).toString();
+				resultfile = (new File(a3workspace.toString() + "/" + "a3-xml-result-b" + build.getNumber()+".xml")).toString();
 				resultfileParam = "--xml-result-file \"" + resultfile + "\"";
 			} else {
 				resultfileParam = "";
@@ -289,18 +313,22 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            		listener.getLogger().println(cmd + "\n");
             }
 
-            // Copy Report and Result Files to Jenkins Workspace
+            // Copy Report and Result Files to Jenkins a3workspace
 
             if (this.copy_report_file){
-            	listener.getLogger().println("[A3 Builder Note:] Copy a³ report file to Jenkins Workspace ...");
-            	copyReportFileToWorkspace(reportfile, workspace.toString(), build.getNumber(), listener);
+            	listener.getLogger().println("[A3 Builder Note:] Copy a³ report file to Jenkins a3workspace ...");
+            	copyReportFileToWorkspace(reportfile, a3workspace.toString(), build.getNumber(), listener);
             }
 
             if (this.copy_result_file){
-            	listener.getLogger().println("[A3 Builder Note:] Copy a³ XML result file to Jenkins Workspace ...");
-            	copyXMLResultFileToWorkspace(resultfile, workspace.toString(), build.getNumber(), listener);
+            	listener.getLogger().println("[A3 Builder Note:] Copy a³ XML result file to Jenkins a3workspace ...");
+            	copyXMLResultFileToWorkspace(resultfile, a3workspace.toString(), build.getNumber(), listener);
             }
 
+            // Remove a3 workspace sub directory again if it is empty
+            if (a3workspace.list().isEmpty() && !a3workspace.equals(workspace)) {
+            		a3workspace.delete();
+            }
 
          } catch (IOException e) {
         	listener.getLogger().println("IOException caught during analysis run.");
@@ -391,9 +419,9 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	    	 bw.close();
 	    	 br.close();
     	 } catch (FileNotFoundException e) {
-    		 listener.getLogger().println("[A3 Builder FileNotFound Exception:] Source file " + src + " could not be found! Aborting copy process to Jenkins workspace.");
+    		 listener.getLogger().println("[A3 Builder FileNotFound Exception:] Source file " + src + " could not be found! Aborting copy process to Jenkins a3 workspace.");
     	 } catch (IOException e) {
-    		 listener.getLogger().println("[A3 Builder IOException:] Destination file " + dest + " could not be written! Aborting copy process to Jenkins workspace.");
+    		 listener.getLogger().println("[A3 Builder IOException:] Destination file " + dest + " could not be written! Aborting copy process to Jenkins a3 workspace.");
     	 }
 
     }
