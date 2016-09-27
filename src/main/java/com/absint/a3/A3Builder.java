@@ -52,16 +52,17 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
     private static final String BUILD_NR    = "1.0.2";
 
-    private String project_file, analysis_ids, pedantic_level;
+    private String project_file, analysis_ids, pedantic_level, export_a3apxworkspace;
     private boolean copy_report_file, copy_result_file, skip_a3_analysis;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public A3Builder(String project_file, String analysis_ids, String pedantic_level, boolean copy_report_file, boolean copy_result_file, boolean skip_a3_analysis)
+    public A3Builder(String project_file, String analysis_ids, String pedantic_level, String export_a3apxworkspace, boolean copy_report_file, boolean copy_result_file, boolean skip_a3_analysis)
     {
         this.project_file   = project_file;
         this.analysis_ids    = analysis_ids;
         this.pedantic_level = pedantic_level;
+        this.export_a3apxworkspace = export_a3apxworkspace;
         this.copy_report_file = copy_report_file;
         this.copy_result_file = copy_result_file;
         this.skip_a3_analysis = skip_a3_analysis;
@@ -89,13 +90,22 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         return analysis_ids;
     }
 
-    /*
+    /**
      * Returns the currently set pedantic level used for the analysis run.
      *
      * @return java.lang.String
      */
     public String getPedantic_level() {
         return pedantic_level;
+    }
+ 
+    /**
+     * Returns the currently set pedantic level used for the analysis run.
+     *
+     * @return java.lang.String
+     */
+    public String getExport_a3apxworkspace() {
+        return export_a3apxworkspace;
     }
 
 
@@ -142,13 +152,15 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      *
      * @param reportFile Report File Name
      * @param resultFile XML Result File Name
+     * @param apxWorkspacePath a3 Workspace Path Name
      * @return String CommandLine String
      */
-    public String builda3CmdLine(String reportFile, String resultFile) {
+    public String builda3CmdLine(String reportFile, String resultFile, String apxWorkspacePath) {
     	File alauncherObj = new File(getDescriptor().getAlauncher());
     	String batch_param = "-b";
     	String pedanticLevel = (!this.pedantic_level.equals("apx") ? "--pedantic-level " + this.pedantic_level : "");
-    	StringBuffer cmd_buf = new StringBuffer(alauncherObj.toString() + " " + this.project_file + " " + batch_param + " " + reportFile + " " + resultFile + " " + pedanticLevel + " ");
+    	String apxWorkspacePath_param = (!apxWorkspacePath.equals("") ? "--export-workspace \"" + apxWorkspacePath + "\"" : "");
+    	StringBuffer cmd_buf = new StringBuffer(alauncherObj.toString() + " " + this.project_file + " " + batch_param + " " + reportFile + " " + resultFile + " " + pedanticLevel + " " + apxWorkspacePath_param + " ");
     	
     	// The Formvalidator guarantees a correct naming of the IDs
     	String[] analyses = analysis_ids.split(",");
@@ -198,20 +210,20 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + project_file);
         APXFileHandler apx = new APXFileHandler(project_file, listener);
 
-        // Generate an a3workspace subdirectory in the Jenkins workspace
-        FilePath a3workspace = new FilePath(workspace, "absint-a3-b" + build.getNumber());
+        // Generate an absint_a3 subdirectory in the Jenkins workspace
+        FilePath absint_a3_dir = new FilePath(workspace, "absint-a3-b" + build.getNumber());
         try {
-			a3workspace.mkdirs();
+        	absint_a3_dir.mkdirs();
 		} catch (IOException | InterruptedException e1) {
 			// subdirectory a3 workspace could not be created, use workspace
 			listener.getLogger().println("[A3 Builder Warning:] a3 workspace directory could not be created in Jenkins workspace. Output will be written to Jenkins workspace instead.");
-			a3workspace = workspace;
+			absint_a3_dir = workspace;
 		}
 
         try {        
             // Perform compatibility Check: Jenkins Plugin and a3
             String target = apx.getTarget();
-            File a3versionFileInfo = new File(a3workspace.toString() + "/" + "a3-"+target+"-version-b"+build.getNumber()+".info");
+            File a3versionFileInfo = new File(absint_a3_dir.toString() + "/" + "a3-"+target+"-version-b"+build.getNumber()+".info");
             listener.getLogger().println("[A3 Builder Note:] Perform a³ Compatibility Check ... ");
             String checkcmd = (new File(getDescriptor().getAlauncher())).toString() + " -b " + target + " --version-file \"" + a3versionFileInfo.toString() + "\"";
         	Proc check = launcher.launch(checkcmd, build.getEnvVars(), listener.getLogger(), workspace);
@@ -240,13 +252,13 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	
 			//Generate temporary report/result file only if no report/result file entry in apx found
 			if (reportfile == null) {
-				reportfile = (new File(a3workspace.toString() + "/" + "a3-report-b" + build.getNumber()+".txt")).toString();
+				reportfile = (new File(absint_a3_dir.toString() + "/" + "a3-report-b" + build.getNumber()+".txt")).toString();
 				reportfileParam = "--report-file \"" + reportfile + "\"" ;
 			} else {
 				reportfileParam = "";
 			}
 			if (resultfile == null) {
-				resultfile = (new File(a3workspace.toString() + "/" + "a3-xml-result-b" + build.getNumber()+".xml")).toString();
+				resultfile = (new File(absint_a3_dir.toString() + "/" + "a3-xml-result-b" + build.getNumber()+".xml")).toString();
 				resultfileParam = "--xml-result-file \"" + resultfile + "\"";
 			} else {
 				resultfileParam = "";
@@ -255,12 +267,29 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 			listener.getLogger().println("                   Textual Report File : " + reportfile);
 			listener.getLogger().println("                   XML Result File     : " + resultfile);
 	
+			/* Determine the directory where to store a3 apx workspace, if any shall be exported */
+			String apxWorkspacePath_str = (apx.getAPXFile().getName()) + "-workspace-jb" + build.getNumber() + ".apx";
+			switch(this.export_a3apxworkspace) {
+				case ("apx_dir"): 
+					apxWorkspacePath_str = (new File(apx.getAPXFile().getParent() + "/" + apxWorkspacePath_str)).getPath();
+					break;
+				case ("jenkins_workspace"):
+					apxWorkspacePath_str = (new FilePath(absint_a3_dir, apxWorkspacePath_str)).toString();
+					break;
+				default: // disabled case
+					apxWorkspacePath_str = ""; 
+			}
+			
+			if (!this.export_a3apxworkspace.equals("disabled")) {
+				listener.getLogger().println("                   a³ Workspace File   : " + apxWorkspacePath_str);
+			}
+
 			/*
 			 * Prepare start of a3 in batch mode
 			 */
 			
 			int exitCode = -1;
-			String cmd = builda3CmdLine(reportfileParam, resultfileParam);
+			String cmd = builda3CmdLine(reportfileParam, resultfileParam, apxWorkspacePath_str);
 
         	long time_before_launch = System.currentTimeMillis();
         	
@@ -317,17 +346,17 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 
             if (this.copy_report_file){
             	listener.getLogger().println("[A3 Builder Note:] Copy a³ report file to Jenkins a3workspace ...");
-            	copyReportFileToWorkspace(reportfile, a3workspace.toString(), build.getNumber(), listener);
+            	copyReportFileToWorkspace(reportfile, absint_a3_dir.toString(), build.getNumber(), listener);
             }
 
             if (this.copy_result_file){
             	listener.getLogger().println("[A3 Builder Note:] Copy a³ XML result file to Jenkins a3workspace ...");
-            	copyXMLResultFileToWorkspace(resultfile, a3workspace.toString(), build.getNumber(), listener);
+            	copyXMLResultFileToWorkspace(resultfile, absint_a3_dir.toString(), build.getNumber(), listener);
             }
 
             // Remove a3 workspace sub directory again if it is empty
-            if (a3workspace.list().isEmpty() && !a3workspace.equals(workspace)) {
-            		a3workspace.delete();
+            if (absint_a3_dir.list().isEmpty() && !absint_a3_dir.equals(workspace)) {
+            	absint_a3_dir.delete();
             }
 
          } catch (IOException e) {

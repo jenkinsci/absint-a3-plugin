@@ -223,9 +223,17 @@ public class APXFileHandler {
 	
 	/** 
 	 * Returns the apx incl. path information  
-	 * @return Path+APX File name (original APX)
+	 * @return Path+APX File name (original APX) as a File Object
 	 */
-	public String getOutputAPX() {				
+	public File getAPXFile() {				
+		return currentAPX;
+	}
+	
+	/** 
+	 * Returns the String representation of apx incl. path information  
+	 * @return Path+APX File name (original APX) as a String
+	 */
+	public String getAPXStr() {				
 		return currentAPX.toString();
 	}
 		
