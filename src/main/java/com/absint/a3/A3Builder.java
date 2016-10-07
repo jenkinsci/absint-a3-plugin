@@ -228,16 +228,16 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             String checkcmd = (new File(getDescriptor().getAlauncher())).toString() + " -b " + target + " --version-file \"" + a3versionFileInfo.toString() + "\"";
         	Proc check = launcher.launch(checkcmd, build.getEnvVars(), listener.getLogger(), workspace);
 	        check.join();          // wait for alauncher to finish
-	        boolean checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3version, a3versionFileInfo); 
+	        boolean checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3build, a3versionFileInfo); 
 	        listener.getLogger().println(checkOK ? "[A3 Builder Note:] Compatibility Check [OK]" : "");
 	        // Delete the temporary generated version info file again.
 	        try { 
-	        	a3versionFileInfo.delete(); 
+	        	a3versionFileInfo.delete();
 	        } catch (Exception e) {
 	        	listener.getLogger().println("[A3 Builder Info:] Temporary version file could not be deleted again.");
 	        }; // If the deleting fails, just ignore it.
 	        if (!checkOK) {
-	        	listener.getLogger().println("[A3 Builder Error:] This version of the " + PLUGIN_NAME + " requires an a³ for " + target + " version newer than " + XMLResultFileHandler.required_a3version + "!\n" +
+	        	listener.getLogger().println("[A3 Builder Error:] This version of the " + PLUGIN_NAME + " requires an a³ for " + target + " " + XMLResultFileHandler.required_a3version + " " + XMLResultFileHandler.required_a3build + " or newer!\n" +
 	        								 "                    Please contact support@absint.com to request an updated a³ for " + target + " version.");
 	        	listener.getLogger().println("\na³ Compatibility check failed.");
 	         	build.setResult(hudson.model.Result.FAILURE);
@@ -374,11 +374,20 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 
     }
 
+    /* Small Helper: Checks if line contains Build number */
+    private boolean lineContainsBuildNumber(String n) {
+   		String buildstrs[] = n.split(" ");
+        for (String elem:buildstrs){
+        	if (elem.toLowerCase().startsWith("build")) return true;
+        }
+        return false;
+	}
+    
     /* Small Helper: Extracts Build Number in long from a string line ending with the build number */
     private long extractBuildNumber(String n) {
     	try {
-    		String buildstrs[] = n.split(":");
-        	String buildstr = buildstrs[buildstrs.length-1];
+    		String buildstrs[] = n.split(" ");
+        	String buildstr = buildstrs[buildstrs.length-1];  // The build number itself is always the last number in the row
         	return Integer.parseInt(buildstr);    	
     	} catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
     		return -1;
@@ -390,19 +399,21 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      * Returns true  - if the alauncher would call a build >= the required build
      * Returns false - otherwise
      */
-	private boolean checkA3Compatibility(String required_a3version, File a3versionFileInfo) {
+	private boolean checkA3Compatibility(String required_a3build, File a3versionFileInfo) {
 		try {
             BufferedReader br = new BufferedReader(
                     				new InputStreamReader(
                     					new FileInputStream(a3versionFileInfo), "UTF-8" ));
             
-            for (int i=0; i < 2; i++) { br.readLine(); } // ignore the first 2 lines in version file 
-			String a3buildLine = br.readLine();  // read third line, looks like this: "This is a3 build 123456"
+            for (String line = br.readLine(); line != null; line = br.readLine()) {
+            	if (lineContainsBuildNumber(line)) {  // line with build looks like this: "This is a3 build 123456" (older alauncher versions)  or  "Build: 123456" (newer alauncher versions)
+            		return (extractBuildNumber(line) >= extractBuildNumber(required_a3build));
+            	}
+            }
 			br.close();
 
-			if (a3buildLine == null) return false;
-			return (extractBuildNumber(a3buildLine) >= extractBuildNumber(required_a3version));
-			
+			return false;
+						
 		} catch (IOException e) {
 			return false;
 		}

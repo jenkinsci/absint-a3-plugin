@@ -55,7 +55,8 @@ public class XMLResultFileHandler {
 	private Document xmldoc;
 	private	File inputXMLFile;
 	
-	public static final String required_a3version = "Build: 268982";
+	public static final String required_a3build   = "Build: 268982";
+	public static final String required_a3version = "Version: 16.04i";
 	
 	/**
 	 * Constructor
@@ -133,9 +134,9 @@ public class XMLResultFileHandler {
 				String error_count   = node.getAttribute("error_count");
 				String failed_str    = node.getAttribute("analysis_status");
 				
-				// a3 XML Results File Version Check, the following three attributes require a3 version 16.04i and build > 266697
+				// a3 XML Results File Version Check, the following three attributes require a3 version 16.04i and build > 268982
 				if (warning_count.equals("") || error_count.equals("") || failed_str.equals("")) {
-					throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible with a³ versions prior to " + required_a3version + "!\nRequest support@absint.com for latest a³ Version.\n");
+					throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible with a³ versions prior to " + required_a3version + " " + required_a3build + "!\nRequest support@absint.com for latest a³ Version.\n");
 				}
 				
 				boolean failed       = (!failed_str.equals("success"));
@@ -160,7 +161,7 @@ public class XMLResultFileHandler {
 							}
 						} else {
 							failed_items.add(currentID);
-							throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible (no 'expectation' tag found) with a³ versions prior to " + required_a3version + "!\n"+
+							throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible (no 'expectation' tag found) with a³ versions prior to " + required_a3version + " " + required_a3build + "!\n"+
 									 						 "                              Write to support@absint.com to request the latest a³ version.");
 							}
 				
@@ -198,7 +199,7 @@ public class XMLResultFileHandler {
 									valueList = node.getElementsByTagName("value");
 								} else {
 									failed_items.add(currentID);
-									throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible (no 'value' tag found) with a³ versions prior to " + required_a3version + "!\n"+
+									throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible (no 'value' tag found) with a³ versions prior to " + required_a3version + " " + required_a3build + "!\n"+
 											 						 "                              Write to support@absint.com to request the latest a³ version.");
 								}
 								result_buf = new StringBuffer(result); // Use StringBuffer for String appending in loops 
@@ -225,7 +226,7 @@ public class XMLResultFileHandler {
 					} catch (NullPointerException e)
 					{
 						failed_items.add(currentID);
-						throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible with a³ versions prior to " + required_a3version + "!\n"+
+						throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible with a³ versions prior to " + required_a3version + " " + required_a3build +  "!\n"+
 														 "                              Write to support@absint.com to request the latest a3 version.");
 					}
 				} else {
