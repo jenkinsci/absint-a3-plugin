@@ -43,6 +43,7 @@ import org.kohsuke.stapler.QueryParameter;
 import javax.servlet.ServletException;
 import java.io.*;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -136,6 +137,12 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         return skip_a3_analysis;
     }
 
+    
+    /*
+     *  end interface to <tt>config.jelly</tt>.
+     */
+    
+    
     /**
      * Small helper routine
      * @param listener TaskListener for Output in Jenkins Console
@@ -179,7 +186,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      */
     private String builda3CmdLineInteractive(Vector<String> failedItems) {
     	File alauncherObj = new File(getDescriptor().getAlauncher());
-    	StringBuffer cmd_buf = new StringBuffer(alauncherObj.toString() + " " + this.project_file);
+    	StringBuffer cmd_buf = new StringBuffer("\"" + alauncherObj.toString() + "\" \"" + this.project_file + "\"");
     	if (failedItems.size() > 0) {
     		String batch_param = "-B";
         	String pedanticHigh = "--pedantic-level warning";
@@ -191,11 +198,51 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 		return cmd_buf.toString();
 	}
 
-
-    /*
-     *  end interface to <tt>config.jelly</tt>.
+    
+	/**
+     * Builds the command line for invocation of a3 interactively opening an a3 workspace
+     * @param apxWorkspacePath_str - Workspace Path String 
+     * @return String CommandLine String
      */
-
+    private String builda3CmdLineWorkspace(String apxWorkspacePath_str) {
+    	String cmd = "\"" + (new File(getDescriptor().getAlauncher())).toString() + "\" \"" + apxWorkspacePath_str + "\"";
+		return cmd;
+	}
+    
+    
+    
+    /**
+     * Expands environment variables of the form 
+     *       ${VAR_NAME}
+     * by their current value.
+     *
+     * @param cmdln	the java.lang.String, usually a command line, 
+     *                    in which to expand variables
+     * @param envMap	a java.util.Map containing the environment variables 
+     *                    and their current values
+     * @return the input String with environment variables expanded to their current value
+     */
+     private static final String expandEnvironmentVarsHelper(
+                                    String cmdln, Map<String,String> envMap ) {
+        final String pattern = "\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}";
+        final Pattern expr = Pattern.compile(pattern);
+        Matcher matcher = expr.matcher(cmdln);
+        String  envValue;
+        Pattern subexpr;
+        while (matcher.find()) {
+           envValue = envMap.get(matcher.group(1).toUpperCase());
+           if (envValue == null) {
+              envValue = "";
+           } else {
+             envValue = envValue.replace("\\", "\\\\");
+           }
+           subexpr = Pattern.compile(Pattern.quote(matcher.group(0)));
+           cmdln = subexpr.matcher(cmdln).replaceAll(envValue);
+        } 
+        return cmdln;  
+     }
+    
+    
     @Override
     public void perform(Run<?,?> build, FilePath workspace, Launcher launcher, TaskListener listener) {
     	// Analysis run started. ID plugin in Jenkins output.
@@ -206,27 +253,35 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	return; // nothing to do, exit method.
         }
         
-        // Let's parse the a3 project file
-        listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + project_file);
-        APXFileHandler apx = new APXFileHandler(project_file, listener);
+        try { 
+        	// Expand project file directory if required
+	        project_file = expandEnvironmentVarsHelper(project_file, build.getEnvironment(listener));
+	        // Let's parse the a3 project file
+	        listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + project_file);
+	        APXFileHandler apx = new APXFileHandler(project_file, listener);
+	
+	        // Generate an absint_a3 subdirectory in the Jenkins workspace
+	        FilePath absint_a3_dir = new FilePath(workspace, "absint-a3-b" + build.getNumber());
+	        try {
+	        	absint_a3_dir.mkdirs();
+			} catch (IOException | InterruptedException e1) {
+				// subdirectory a3 workspace could not be created, use workspace
+				listener.getLogger().println("[A3 Builder Warning:] a3 workspace directory could not be created in Jenkins workspace. Output will be written to Jenkins workspace instead.");
+				absint_a3_dir = workspace;
+			}
 
-        // Generate an absint_a3 subdirectory in the Jenkins workspace
-        FilePath absint_a3_dir = new FilePath(workspace, "absint-a3-b" + build.getNumber());
-        try {
-        	absint_a3_dir.mkdirs();
-		} catch (IOException | InterruptedException e1) {
-			// subdirectory a3 workspace could not be created, use workspace
-			listener.getLogger().println("[A3 Builder Warning:] a3 workspace directory could not be created in Jenkins workspace. Output will be written to Jenkins workspace instead.");
-			absint_a3_dir = workspace;
-		}
-
-        try {        
+       
             // Perform compatibility Check: Jenkins Plugin and a3
             String target = apx.getTarget();
             File a3versionFileInfo = new File(absint_a3_dir.toString() + "/" + "a3-"+target+"-version-b"+build.getNumber()+".info");
             listener.getLogger().println("[A3 Builder Note:] Perform a³ Compatibility Check ... ");
             String checkcmd = (new File(getDescriptor().getAlauncher())).toString() + " -b " + target + " --version-file \"" + a3versionFileInfo.toString() + "\"";
-        	Proc check = launcher.launch(checkcmd, build.getEnvVars(), listener.getLogger(), workspace);
+        	// Expand system environment variables in command line
+            checkcmd = expandEnvironmentVarsHelper(checkcmd, build.getEnvironment(listener));
+            Proc check = launcher.launch(checkcmd, 
+            							build.getEnvironment(listener), 
+            							listener.getLogger(), 
+            							workspace);
 	        check.join();          // wait for alauncher to finish
 	        boolean checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3build, a3versionFileInfo); 
 	        listener.getLogger().println(checkOK ? "[A3 Builder Note:] Compatibility Check [OK]" : "");
@@ -290,13 +345,15 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 			
 			int exitCode = -1;
 			String cmd = builda3CmdLine(reportfileParam, resultfileParam, apxWorkspacePath_str);
+			// Expand environment variables in the command line
+			cmd = expandEnvironmentVarsHelper(cmd, build.getEnvironment(listener));
 
         	long time_before_launch = System.currentTimeMillis();
         	
-        	Proc proc = launcher.launch( cmd, // command line call to a3
-                                         build.getEnvVars(),
-                                         listener.getLogger(),
-                                         workspace );
+        	Proc proc = launcher.launch(cmd, // command line call to a3
+        								build.getEnvironment(listener),
+                                        listener.getLogger(),
+                                        workspace );
             exitCode = proc.join();          // wait for a3 to finish
 
             /* Pretty Print XML Result File */
@@ -315,6 +372,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             	if (exitCode == 0) {
             		listener.getLogger().println("                    Check the project maually:\n");
               		cmd = builda3CmdLineInteractive(failedItems);
+              		cmd = expandEnvironmentVarsHelper(cmd, build.getEnvironment(listener));
                		listener.getLogger().println(cmd + "\n");
             	}
             }            
@@ -338,7 +396,14 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            			listener.getLogger().println("\n[A3 Builder Warning:] The a³ returned a failure code but there was no failed analysis found.\n"+
            										 "                      Probably something in your .apx project configuration is wrong. To check, use a³ interactively:");
            		}
-          		cmd = builda3CmdLineInteractive(failedItems);
+          		
+           		if (!this.export_a3apxworkspace.equals("disabled")) {
+           			// Then we have a workspace file
+           			cmd = builda3CmdLineWorkspace(apxWorkspacePath_str);           			
+           		} else {
+           			cmd = builda3CmdLineInteractive(failedItems);
+           		}
+          		cmd = expandEnvironmentVarsHelper(cmd, build.getEnvironment(listener));
            		listener.getLogger().println(cmd + "\n");
             }
 
@@ -374,7 +439,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 
     }
 
-    /* Small Helper: Checks if line contains Build number */
+	/* Small Helper: Checks if line contains Build number */
     private boolean lineContainsBuildNumber(String n) {
    		String buildstrs[] = n.split(" ");
         for (String elem:buildstrs){
@@ -545,6 +610,22 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         }
 
 
+/**
+ * Helper method to check whether a string contains an environment variable of form
+ * <br><tt>${IDENTIFIER}</tt><br>
+ *
+ * @param   s    String to scan for environment variable expressions
+ * @return  Outcome of the check as a boolean (true if such an expression
+ *          was found, otherwise false).
+ */
+       public static final boolean containsEnvVars(String s)
+       {
+           final String pattern = "\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}";
+           final Pattern expr = Pattern.compile(pattern);
+           Matcher matcher = expr.matcher(s);
+           return matcher.find();
+       } 
+
 
 /**
  * Performs on-the-fly validation of the form field 'alauncher'.
@@ -561,6 +642,14 @@ public class A3Builder extends Builder implements SimpleBuildStep {
  **/
         public FormValidation doCheckAlauncher(@QueryParameter String value)
                 throws IOException, ServletException {
+
+        	if(value == null || value.trim().equals("") )
+                return FormValidation.warning("No file specified.");
+        	
+            if(containsEnvVars(value)) {
+                return FormValidation.warning("The specified path contains an environment variable, please make sure that the constructed path is correct.");
+             }
+        	
             File ftmp = new File(value);
             if (!ftmp.exists())
                 return FormValidation.error("Specified file not found.");
@@ -585,7 +674,15 @@ public class A3Builder extends Builder implements SimpleBuildStep {
  **/
         public FormValidation doCheckProject_file(@QueryParameter String value)
                 throws IOException, ServletException {
-            File ftmp = new File(value);
+
+        	if(value == null || value.trim().equals("") )
+                return FormValidation.warning("No file specified.");
+        	
+            if(containsEnvVars(value)) {
+                return FormValidation.warning("The specified path contains an environment variable, please make sure that the constructed path is correct.");
+             }
+        	
+        	File ftmp = new File(value);
             if (!ftmp.exists())
                 return FormValidation.error("Specified file not found.");
             if (!ftmp.canRead())
