@@ -268,12 +268,12 @@ public class A3Builder extends Builder implements SimpleBuildStep {
  
         try { 
         	// Expand project file directory if required
-	        project_file = expandEnvironmentVarsHelper(project_file, build.getEnvironment(listener));
+	        String expanded_project_file = expandEnvironmentVarsHelper(project_file, build.getEnvironment(listener));
 	        // Let's parse the a3 project file
-	        listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + project_file);
+	        listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + expanded_project_file);
 	        APXFileHandler apx;
 			try {
-				apx = new APXFileHandler(project_file, listener);
+				apx = new APXFileHandler(expanded_project_file, listener);
 			} catch (IOException e) {
 	        	listener.getLogger().println("[A3 Builder Error:] IOException while accessing a³ .apx Project File. Check your project configuration 'Configure -> a³ Analysis Run -> Basic Settings -> Project File (APX).\nAborting Build.\n");
 	        	build.setResult(hudson.model.Result.FAILURE);
