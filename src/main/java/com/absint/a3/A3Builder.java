@@ -39,9 +39,13 @@ import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
+import org.xml.sax.SAXException;
 import org.kohsuke.stapler.QueryParameter;
 import javax.servlet.ServletException;
 import java.io.*;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -248,28 +252,43 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	// Analysis run started. ID plugin in Jenkins output.
         listener.getLogger().println("\nThis is " + PLUGIN_NAME + " in version " + BUILD_NR);
 
+        // Perform some preliminary checks
         if(this.skip_a3_analysis) {
         	listener.getLogger().println("[A3 Builder Note:] a³ analysis run has been (temporarily) deactivated. Skipping analysis run.\n");
         	return; // nothing to do, exit method.
         }
         
+        String alauncher_str = getDescriptor().getAlauncher();
+        if (alauncher_str == null || alauncher_str.isEmpty()) {
+        	listener.getLogger().println("[A3 Builder Error:] a³ Configuration has not been done yet. Go to 'Manage Jenkins -> Configure System -> a³ Configuration' to complete configuration.\nAborting Build.\n");
+        	build.setResult(hudson.model.Result.FAILURE);
+         	return;
+        }
+        
+ 
         try { 
         	// Expand project file directory if required
 	        project_file = expandEnvironmentVarsHelper(project_file, build.getEnvironment(listener));
 	        // Let's parse the a3 project file
 	        listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + project_file);
-	        APXFileHandler apx = new APXFileHandler(project_file, listener);
-	
+	        APXFileHandler apx;
+			try {
+				apx = new APXFileHandler(project_file, listener);
+			} catch (IOException e) {
+	        	listener.getLogger().println("[A3 Builder Error:] IOException while accessing a³ .apx Project File. Check your project configuration 'Configure -> a³ Analysis Run -> Basic Settings -> Project File (APX).\nAborting Build.\n");
+	        	build.setResult(hudson.model.Result.FAILURE);
+	         	return;
+			}
+	        
 	        // Generate an absint_a3 subdirectory in the Jenkins workspace
 	        FilePath absint_a3_dir = new FilePath(workspace, "absint-a3-b" + build.getNumber());
 	        try {
 	        	absint_a3_dir.mkdirs();
 			} catch (IOException | InterruptedException e1) {
-				// subdirectory a3 workspace could not be created, use workspace
+				// Subdirectory a3 workspace could not be created, use workspace
 				listener.getLogger().println("[A3 Builder Warning:] a3 workspace directory could not be created in Jenkins workspace. Output will be written to Jenkins workspace instead.");
 				absint_a3_dir = workspace;
 			}
-
        
             // Perform compatibility Check: Jenkins Plugin and a3
             String target = apx.getTarget();
@@ -285,12 +304,18 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	        check.join();          // wait for alauncher to finish
 	        boolean checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3build, a3versionFileInfo); 
 	        listener.getLogger().println(checkOK ? "[A3 Builder Note:] Compatibility Check [OK]" : "");
-	        // Delete the temporary generated version info file again.
+	        // Try to delete the temporary generated version info file again.
 	        try { 
-	        	a3versionFileInfo.delete();
-	        } catch (Exception e) {
-	        	listener.getLogger().println("[A3 Builder Info:] Temporary version file could not be deleted again.");
-	        }; // If the deleting fails, just ignore it.
+	        	Files.delete(a3versionFileInfo.toPath());
+	        } catch (NoSuchFileException x) {
+	        	listener.getLogger().println("[A3 Builder Info:] No such file or directory. Temporary version file could not be deleted again.");
+	        } catch (DirectoryNotEmptyException x) {
+	        	listener.getLogger().println("[A3 Builder Info:] Directory not empty. Temporary version file could not be deleted again.");
+	        } catch (IOException x) {
+	            // File permission problems are caught here.
+	        	listener.getLogger().println("[A3 Builder Info:] File Permission Problem. Temporary version file could not be deleted again.");
+	        }
+	        
 	        if (!checkOK) {
 	        	listener.getLogger().println("[A3 Builder Error:] This version of the " + PLUGIN_NAME + " requires an a³ for " + target + " " + XMLResultFileHandler.required_a3version + " " + XMLResultFileHandler.required_a3build + " or newer!\n" +
 	        								 "                    Please contact support@absint.com to request an updated a³ for " + target + " version.");
@@ -395,6 +420,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            		} else {
            			listener.getLogger().println("\n[A3 Builder Warning:] The a³ returned a failure code but there was no failed analysis found.\n"+
            										 "                      Probably something in your .apx project configuration is wrong. To check, use a³ interactively:");
+           			// Then don't use the exported workspace to investigate.
+           			this.export_a3apxworkspace="disabled";
            		}
           		
            		if (!this.export_a3apxworkspace.equals("disabled")) {
@@ -472,6 +499,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             
             for (String line = br.readLine(); line != null; line = br.readLine()) {
             	if (lineContainsBuildNumber(line)) {  // line with build looks like this: "This is a3 build 123456" (older alauncher versions)  or  "Build: 123456" (newer alauncher versions)
+            		br.close();
             		return (extractBuildNumber(line) >= extractBuildNumber(required_a3build));
             	}
             }
@@ -499,9 +527,16 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	 String dest     = workspace + "/" + "a3-" + element + "-b" + build + "-copy" + (element.equals("report") ? ".txt" : ".xml");
     	 File destfile = new File(dest);
 
+    	 File parentDestFile = destfile.getParentFile();
+    	 File parentSourceFile = sourcefile.getParentFile();
+    	 
+    	 if (parentDestFile == null) { // Critical issue because this means no subdirectory for absint-a3-b<NR> was created
+    		 listener.getLogger().println("[A3 Builder ElementFile Copy Exception:] Destination file has no parent directory. (Inconsistent state) => Copy process is aborted.");
+    		 return;
+    	 }
 
-    	 if (sourcefile.compareTo(destfile) == 0) {
-    		 listener.getLogger().println("[A3 Builder ElementFile Copy Note:] " + element + " source and destination file are the same. No copy needed.");
+    	 if (parentSourceFile != null && parentSourceFile.compareTo(parentDestFile) == 0) {
+    		 listener.getLogger().println("[A3 Builder ElementFile Copy Note:] " + element + " source and destination directory are the same. No copy needed.");
     		 return; // Then src and dest are the same file, don't copy
     	 }
 
@@ -598,6 +633,9 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         public FormValidation doCheckAnalysis_ids(@QueryParameter String value)
                 throws IOException, ServletException {
         	if (value != null && !value.trim().equals("")) {
+        		if (containsEnvVars(value)){
+        			return FormValidation.error("Analysis IDs must not contain system environment variables ${...}!");
+        		}
            		// The analysis IDs must be a comma-separated (or differently) list of analysis IDs
         		String[] itemList = value.split(",");
         		// Check for each item that it follows the a3 analysis ID naming scheme

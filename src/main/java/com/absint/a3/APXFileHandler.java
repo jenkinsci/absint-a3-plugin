@@ -49,8 +49,9 @@ public class APXFileHandler {
 	 * Constructor
 	 * @param filename of the APX File
 	 * @param listener TaskListener for Console Output
+	 * @throws IOException Constructor may throw an IO Exception if apx project file was not found
 	 */
-	public APXFileHandler(String filename, TaskListener listener){
+	public APXFileHandler(String filename, TaskListener listener) throws IOException{
 			
 		this.listener = listener;
 		
@@ -66,19 +67,14 @@ public class APXFileHandler {
 			xmldoc = builder.parse(currentAPX);
 		
 			xmldoc.getDocumentElement().normalize();		
-		
-		} catch (ParserConfigurationException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (UnsupportedEncodingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			listener.getLogger().println("[IOException:] APX File <" + filename + "> was not found!");
+
 		} catch (SAXException e) {
-			listener.getLogger().println("[SAX/IOException:] APX File <" + filename + "> was not found!");
+			listener.getLogger().println("[APX Structure Error:] APX file " + filename + " could not be parsed. Contact support@absint.com and provide the apx file please.\n");
+			throw (new IOException()); // Throw IOException to catch the incomplete APXFileHanlder object			
+		} catch (ParserConfigurationException e) {
+			listener.getLogger().println("[APX Structure Error:] Serious SAX XML-Parser configuration issue. Contact support@absint.com and provide the apx file please.\n");
+			throw (new IOException()); // Throw IOException to catch the incomplete APXFileHanlder object			
 		}
-				
 	}
 
 	
