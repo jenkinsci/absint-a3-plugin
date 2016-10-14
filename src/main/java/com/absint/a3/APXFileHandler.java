@@ -69,7 +69,7 @@ public class APXFileHandler {
 			xmldoc.getDocumentElement().normalize();		
 
 		} catch (SAXException e) {
-			listener.getLogger().println("[APX Structure Error:] APX file " + filename + " could not be parsed. Contact support@absint.com and provide the apx file please.\n");
+			listener.getLogger().println("[APX Structure Error:] APX file " + filename + " could not be parsed. Make sure that you provided an a³ APX project file instead of an a³ APX workspace file.\nContact support@absint.com for further information and provide the apx file if in doubt.\n");
 			throw (new IOException()); // Throw IOException to catch the incomplete APXFileHanlder object			
 		} catch (ParserConfigurationException e) {
 			listener.getLogger().println("[APX Structure Error:] Serious SAX XML-Parser configuration issue. Contact support@absint.com and provide the apx file please.\n");
