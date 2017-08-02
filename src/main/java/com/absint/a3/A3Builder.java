@@ -55,7 +55,7 @@ import java.util.regex.Pattern;
  */
 public class A3Builder extends Builder implements SimpleBuildStep {
     private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
-    private static final String BUILD_NR    = "1.0.2";
+    private static final String BUILD_NR    = "1.0.3";
 
     private String project_file, analysis_ids, pedantic_level, export_a3apxworkspace;
     private boolean copy_report_file, copy_result_file, skip_a3_analysis;
@@ -364,6 +364,10 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 				listener.getLogger().println("                   a³ Workspace File   : " + apxWorkspacePath_str);
 			}
 
+			/* Prepare the <Analysis ID, HTML Report File> Map */
+			HashMap<String, File> id2htmlreportMap = new HashMap<String, File>();
+			apx.fillIDtoHTMLReportMap(id2htmlreportMap);
+						
 			/*
 			 * Prepare start of a3 in batch mode
 			 */
@@ -381,8 +385,32 @@ public class A3Builder extends Builder implements SimpleBuildStep {
                                         workspace );
             exitCode = proc.join();          // wait for a3 to finish
 
+            /*
+             *  Copy Report, Result and all available local HTML Report Files to Jenkins a3workspace
+             */
+            if (this.copy_report_file){
+            	listener.getLogger().println("[A3 Builder Note:] Copy a³ report file to Jenkins a3workspace ...");
+            	copyReportFileToWorkspace(reportfile, absint_a3_dir.toString(), build.getNumber(), listener);
+            }
+            
+            if (this.copy_result_file){
+                listener.getLogger().println("[A3 Builder Note:] Copy a³ XML result file to Jenkins a3workspace ...");
+                copyXMLResultFileToWorkspace(resultfile, absint_a3_dir.toString(), build.getNumber(), listener);
+            }
+             
+            // Copy all the HTML Report Files
+            if (!id2htmlreportMap.isEmpty()) {
+                listener.getLogger().println("[A3 Builder Note:] Copy a³ HTML report file(s) to Jenkins a3workspace ...");
+               	
+                for (Map.Entry<String, File> entry : id2htmlreportMap.entrySet()) {
+                	String id = entry.getKey();
+              		File html_report_file = entry.getValue();
+               		copyHTMLReportFileToWorkspace(html_report_file.toString(), absint_a3_dir.toString(), id, build.getNumber(), listener);
+               	}
+            }
+            
             /* Pretty Print XML Result File */
-            XMLResultFileHandler xml = new XMLResultFileHandler(resultfile, listener);
+            XMLResultFileHandler xml = new XMLResultFileHandler(resultfile, build.getNumber(), listener);
          
             boolean xmlfailed = false;
             Vector<String> failedItems = new Vector<String>();
@@ -390,7 +418,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             // Check if the XML Result File has been written by the analysis at all
             if (xml.getXMLResultFile().lastModified() >= time_before_launch) {
             	// If yes: evaluate its results
-             	xmlfailed = xml.prettyPrintResultsAndCollectFailedItems(failedItems);
+            	xmlfailed = xml.prettyPrintResultsAndCollectFailedItems(failedItems, id2htmlreportMap);
             } else {
             	listener.getLogger().println("[A3 Builder Info:] The XML Result File has not been updated by the a³ analysis run. ");
             	// If not updated, the analysis did not run and the success code MUST NOT be 0 (=success)!
@@ -432,18 +460,6 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            		}
           		cmd = expandEnvironmentVarsHelper(cmd, build.getEnvironment(listener));
            		listener.getLogger().println(cmd + "\n");
-            }
-
-            // Copy Report and Result Files to Jenkins a3workspace
-
-            if (this.copy_report_file){
-            	listener.getLogger().println("[A3 Builder Note:] Copy a³ report file to Jenkins a3workspace ...");
-            	copyReportFileToWorkspace(reportfile, absint_a3_dir.toString(), build.getNumber(), listener);
-            }
-
-            if (this.copy_result_file){
-            	listener.getLogger().println("[A3 Builder Note:] Copy a³ XML result file to Jenkins a3workspace ...");
-            	copyXMLResultFileToWorkspace(resultfile, absint_a3_dir.toString(), build.getNumber(), listener);
             }
 
             // Remove a3 workspace sub directory again if it is empty
@@ -520,11 +536,33 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         return (DescriptorImpl)super.getDescriptor();
     }
 
+    // Available Elements for copy Element procedure
+    private enum Element { 
+    	REPORT, XML_RESULT, HTML
+    }
+        
     /* Small Helper Copy Functions */
-    private void copyElementFileToWorkspace(String src, String workspace, int build, String element, TaskListener listener) {
+    private void copyElementFileToWorkspace(String src, String workspace, Element elem, String id, int build, TaskListener listener) {
     	 // Open Source File (Report/XML result File)
     	 File sourcefile = new File(src);
-    	 String dest     = workspace + "/" + "a3-" + element + "-b" + build + "-copy" + (element.equals("report") ? ".txt" : ".xml");
+    	 String suffix = "";
+
+    	 switch(elem) {
+    	 	case REPORT:
+    	 		suffix = ".txt";
+    	 		break;
+    	 	case XML_RESULT: 
+    	 		suffix = ".xml";
+    	 		break;
+    	 	case HTML:
+    	 //extract file from src path first
+    	 		suffix = ".html";
+    	 		break;
+    	 	default: 
+    	 		listener.getLogger().println("[A3 Builder ElementFile Copy Note:] " + id + " not a defined element.");
+    	 }
+    	    	 
+    	 String dest = workspace + "/" + "a3-" + id + "-b" + build + "-copy" + suffix;
     	 File destfile = new File(dest);
 
     	 File parentDestFile = destfile.getParentFile();
@@ -536,7 +574,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	 }
 
     	 if (parentSourceFile != null && parentSourceFile.compareTo(parentDestFile) == 0) {
-    		 listener.getLogger().println("[A3 Builder ElementFile Copy Note:] " + element + " source and destination directory are the same. No copy needed.");
+    		 listener.getLogger().println("[A3 Builder ElementFile Copy Note:] " + id + " source and destination directory are the same. No copy needed.");
     		 return; // Then src and dest are the same file, don't copy
     	 }
 
@@ -567,14 +605,17 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     }
 
     private void copyReportFileToWorkspace(String src, String workspace, int build, TaskListener listener) {
-    	copyElementFileToWorkspace(src, workspace, build, "report", listener);
+    	copyElementFileToWorkspace(src, workspace,  Element.REPORT, "report", build, listener);
     }
 
     private void copyXMLResultFileToWorkspace(String src, String workspace, int build, TaskListener listener) {
-    	copyElementFileToWorkspace(src, workspace, build, "xml-result", listener);
+    	copyElementFileToWorkspace(src, workspace, Element.XML_RESULT, "xml-result", build, listener);
     }
 
-
+    private void copyHTMLReportFileToWorkspace(String src, String workspace, String id, int build, TaskListener listener) {
+    	copyElementFileToWorkspace(src, workspace, Element.HTML, id, build, listener);
+    }
+    
     /**
      * Descriptor for {@link A3Builder}. Used as a singleton.
      * The class is marked as public so that it can be accessed from views.

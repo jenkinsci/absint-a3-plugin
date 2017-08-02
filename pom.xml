@@ -9,7 +9,7 @@
     <relativePath />
   </parent>
   <artifactId>absint-a3</artifactId>
-  <version>1.0.2</version>
+  <version>1.0.3-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <properties>
@@ -53,7 +53,7 @@
     <connection>scm:git:https://github.com/jenkinsci/absint-a3-plugin.git</connection>
     <developerConnection>scm:git:https://github.com/jenkinsci/absint-a3-plugin.git</developerConnection>
     <url>https://github.com/jenkinsci/absint-a3-plugin</url>
-    <tag>absint-a3-1.0.2</tag>
+    <tag>absint-a3-1.0.3</tag>
   </scm>
 
   <repositories>

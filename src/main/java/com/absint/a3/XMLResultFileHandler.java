@@ -29,6 +29,7 @@ package com.absint.a3;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.HashMap;
 import java.util.Vector;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -54,6 +55,7 @@ public class XMLResultFileHandler {
 	private TaskListener listener;	
 	private Document xmldoc;
 	private	File inputXMLFile;
+	private int build;
 	
 	public static final String required_a3build   = "Build: 268982";
 	public static final String required_a3version = "Version: 16.04i";
@@ -61,11 +63,13 @@ public class XMLResultFileHandler {
 	/**
 	 * Constructor
 	 * @param filename of the XML Result File
+	 * @param build current build number 
 	 * @param listener TaskListener for Console Output
 	 */
-	public XMLResultFileHandler(String filename, TaskListener listener){
+	public XMLResultFileHandler(String filename, int build, TaskListener listener){
 			
 		this.listener = listener;
+		this.build = build;
 		
 		/* Need a Document Builder Factory */
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -96,11 +100,12 @@ public class XMLResultFileHandler {
 	/***
 	 * Pretty Prints all the Results as side effect to the listener Logger
 	 * @param  failed_items - A Container that collects the IDs of all analysis items which failed
+	 * @param  id2htmlmap - A HashMap that contains (key, value) pairs for all Analysis ID's (key) which have a local HTML Report File (value) specified in the APX Project
 	 * @return boolean 
 	 * 		   true  - if there was at least one failed analysis
 	 * 		   false - if there was no failed analysis
 	 */
-	public boolean prettyPrintResultsAndCollectFailedItems(Vector<String> failed_items) {
+	public boolean prettyPrintResultsAndCollectFailedItems(Vector<String> failed_items, HashMap<String, File> id2htmlmap) {
 		Element rootNode = xmldoc.getDocumentElement(); // must be results.
 		NodeList resultsList = rootNode.getElementsByTagName("result");
 
@@ -110,14 +115,16 @@ public class XMLResultFileHandler {
 					throw new XMLResultFileException("[XML Result Structure Error:] There must be at least one 'result' Entry in the XML result file");
 			}
 			
-			String formatString = "%-5s  %35s  %9s  %35s  %20s  %5s  %3s  %6s%n";
+			final int IDwidth = 35; // Width of the ID column, which is handled separately (because of Hyperlink feature for HTML reports)
+			String formatString = "%-5s  %9s  %35s  %20s  %5s  %3s  %6s%n";
 
 			listener.getLogger().println ("\n================");
 			listener.getLogger().println ("Analysis Results");
 			listener.getLogger().println ("================");
-			listener.getLogger().format(formatString + "\n", "Type", "ID", "Time(sec)", "Result", "Expectation", "#Warn", "#Err", "Failed");
-
-		   
+			
+			listener.getLogger().format("%-" + (IDwidth + 2) +"s", "ID");
+			listener.getLogger().format(formatString + "\n", "Type", "Time(sec)", "Result", "Expectation", "#Warn", "#Err", "Failed");
+					   
 			/* Iterate through each Result-Element */
 			for (int i=0; i<resultsList.getLength(); i++) {
 
@@ -235,7 +242,20 @@ public class XMLResultFileHandler {
 					failed_items.add(currentID);
 				}				
 				// Print Result Line!
-				listener.getLogger().format (formatString, analysisType, currentID, analysisTime, result, expectation, warning_count, error_count, failed_str );
+				
+				// If there was originally a HTML report file specified in the APX for the current analysis ID, turn it into an hyperlink
+				if (id2htmlmap.containsKey(currentID)) {
+					try {
+						String reportHTMLinWorkspace = "../ws/absint-a3-b" + this.build + "/" + "a3-" + currentID + "-b" + this.build + "-copy.html";
+						listener.hyperlink(reportHTMLinWorkspace,  currentID);
+					} catch (IOException e) {
+						throw new XMLResultFileException("[XML Result File Evaluation Error:] While generating HTML hyperlinks for analysis id " + currentID);
+					}					
+				} else listener.getLogger().print(currentID); // if no HTML was specified, there is no entry in the map, so just print the ID in a normal way
+				
+				fillIDwithBlanks(currentID, IDwidth + 2);
+				listener.getLogger().format (formatString, analysisType, analysisTime, result, expectation, warning_count, error_count, failed_str );
+
 			} // end of for
 			
 		listener.getLogger().println();
@@ -247,7 +267,14 @@ public class XMLResultFileHandler {
 		return (failed_items.size() > 0);
 	} // end of member prettyPrint...
 
-
+	
+	private void fillIDwithBlanks(String currentID, int nrchars) {
+		// TODO Auto-generated method stub
+		StringBuffer sbuf = new StringBuffer();
+		for (int i=0; i<nrchars-currentID.length();i++) { sbuf.append(" "); }
+		listener.getLogger().print(sbuf.toString());		
+	}	
+	
 	private String shortenAnalysisType(String type) {
 		String analysisType;
 		switch (type) {

@@ -30,6 +30,7 @@ import org.xml.sax.SAXException;
 import hudson.model.TaskListener;
 import javax.xml.parsers.*;
 import java.io.*;
+import java.util.HashMap;
 
 public class APXFileHandler {
 
@@ -151,6 +152,63 @@ public class APXFileHandler {
 	 * ========================================================================================
 	 */	
 	
+	/**
+	 * Extracts all analysis items from APX project file and fills the given Map along (AnalysisID, PathToHTMLReportFile)
+	 * @param map is the instance of an HashMap filled in this member routine
+	 */
+	public void fillIDtoHTMLReportMap(HashMap<String, File> map) { 
+		
+		Element rootNode = xmldoc.getDocumentElement();
+		NodeList analysesList = rootNode.getElementsByTagName("analyses");
+		try {
+			if (analysesList.getLength() == 0){
+				// There is no analysis specified in APX => map stays empty.
+				return;
+			} else if (analysesList.getLength() > 1) { 
+				throw new APXFileException("[APX Structure Error:] There must be at most one 'analyses' section in the APX.");
+			} 
+			
+			Element analysesElement = (Element) analysesList.item(0);
+			
+			// Either search for "analysis" sub-nodes 
+			NodeList analysisList = analysesElement.getElementsByTagName("analysis");
+			
+			/* Iterate through each analysis-Element in the list */
+			for (int i=0; i<analysisList.getLength(); i++) {
+				
+				Element currentAnalysisElement = (Element) analysisList.item(i);
+				String currentID 	 = currentAnalysisElement.getAttribute("id");
+							
+				NodeList currentHTMLreportList = currentAnalysisElement.getElementsByTagName("html_report");
+				
+				if (currentHTMLreportList.getLength() == 1) {
+					Element currentHTMLreportfileElement = (Element) currentHTMLreportList.item(0);
+					//extract the html-report file name
+					String htmlreportfile_str = currentHTMLreportfileElement.getTextContent();
+					
+					// Here we know there was at least something specified in the report/result Section in the APX
+					// Let's find out if it is an absolute/relative path
+					
+					File htmlReportfile = new File(htmlreportfile_str);
+					if (!htmlReportfile.isAbsolute()) {
+						// The HTML report file entry of this analysis is relative, make an absolute path out of it for Jenkins
+						String workingDir = currentAPX.getParent();
+						htmlReportfile = new File(workingDir + "/" + htmlReportfile.toString());
+					} 
+					
+					// finally fill the map with <ID, HTML File String> pair
+					map.put(currentID, htmlReportfile);
+				}
+				
+			}
+		} catch (APXFileException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();				
+				listener.getLogger().println(e.getMessage());
+				
+		} 
+		return;
+	}
 	
 	/** 
 	 * 
