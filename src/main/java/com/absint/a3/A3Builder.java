@@ -377,7 +377,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 			// Expand environment variables in the command line
 			cmd = expandEnvironmentVarsHelper(cmd, build.getEnvironment(listener));
 
-        	long time_before_launch = System.currentTimeMillis();
+			long time_before_launch = System.currentTimeMillis() / 1000 * 1000;
         	
         	Proc proc = launcher.launch(cmd, // command line call to a3
         								build.getEnvironment(listener),
