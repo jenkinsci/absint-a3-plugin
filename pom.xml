@@ -9,7 +9,7 @@
     <relativePath />
   </parent>
   <artifactId>absint-a3</artifactId>
-  <version>1.0.3</version>
+  <version>1.0.4-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <properties>
