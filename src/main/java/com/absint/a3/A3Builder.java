@@ -55,7 +55,7 @@ import java.util.regex.Pattern;
  */
 public class A3Builder extends Builder implements SimpleBuildStep {
     private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
-    private static final String BUILD_NR    = "1.0.3";
+    private static final String BUILD_NR    = "1.1.0";
 
     private String project_file, analysis_ids, pedantic_level, export_a3apxworkspace;
     private boolean copy_report_file, copy_result_file, skip_a3_analysis;
@@ -290,17 +290,28 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 				absint_a3_dir = workspace;
 			}
        
+	        // Prepare environment by setting AI_LICENSE environement variable
+	        Map<String,String> env = build.getEnvironment(listener);
+	        if (!getDescriptor().getAlmserver().equals("")) { // if alm server host was specified 
+	        	String alm_server_address = getDescriptor().getAlmserver() + "@" + getDescriptor().getAlmport();
+		        
+				String old_ai_license = env.put("AI_LICENSE", alm_server_address);
+				if (old_ai_license!=null) {
+					listener.getLogger().println("[A3 Builder Info:] Overwriting AI_LICENSE environment variable with value: " + alm_server_address );
+				}
+	        }	        			
+	        
             // Perform compatibility Check: Jenkins Plugin and a3
-            String target = apx.getTarget();
+            String target = apx.getTarget(); 
             File a3versionFileInfo = new File(absint_a3_dir.toString() + "/" + "a3-"+target+"-version-b"+build.getNumber()+".info");
             listener.getLogger().println("[A3 Builder Note:] Perform a³ Compatibility Check ... ");
             String checkcmd = (new File(getDescriptor().getAlauncher())).toString() + " -b " + target + " --version-file \"" + a3versionFileInfo.toString() + "\"";
         	// Expand system environment variables in command line
-            checkcmd = expandEnvironmentVarsHelper(checkcmd, build.getEnvironment(listener));
+            checkcmd = expandEnvironmentVarsHelper(checkcmd, env);
             Proc check = launcher.launch(checkcmd, 
-            							build.getEnvironment(listener), 
-            							listener.getLogger(), 
-            							workspace);
+            							 env, 
+            							 listener.getLogger(), 
+            							 workspace);
 	        check.join();          // wait for alauncher to finish
 	        boolean checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3build, a3versionFileInfo); 
 	        listener.getLogger().println(checkOK ? "[A3 Builder Note:] Compatibility Check [OK]" : "");
@@ -375,12 +386,12 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 			int exitCode = -1;
 			String cmd = builda3CmdLine(reportfileParam, resultfileParam, apxWorkspacePath_str);
 			// Expand environment variables in the command line
-			cmd = expandEnvironmentVarsHelper(cmd, build.getEnvironment(listener));
+			cmd = expandEnvironmentVarsHelper(cmd, env);
 
 			long time_before_launch = System.currentTimeMillis() / 1000 * 1000;
         	
         	Proc proc = launcher.launch(cmd, // command line call to a3
-        								build.getEnvironment(listener),
+        								env,
                                         listener.getLogger(),
                                         workspace );
             exitCode = proc.join();          // wait for a3 to finish
@@ -425,7 +436,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             	if (exitCode == 0) {
             		listener.getLogger().println("                    Check the project maually:\n");
               		cmd = builda3CmdLineInteractive(failedItems);
-              		cmd = expandEnvironmentVarsHelper(cmd, build.getEnvironment(listener));
+              		cmd = expandEnvironmentVarsHelper(cmd, env);
                		listener.getLogger().println(cmd + "\n");
             	}
             }            
@@ -458,7 +469,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            		} else {
            			cmd = builda3CmdLineInteractive(failedItems);
            		}
-          		cmd = expandEnvironmentVarsHelper(cmd, build.getEnvironment(listener));
+          		cmd = expandEnvironmentVarsHelper(cmd, env);
            		listener.getLogger().println(cmd + "\n");
             }
 
@@ -637,6 +648,9 @@ public class A3Builder extends Builder implements SimpleBuildStep {
          *     Jenkins~~~Manage Jenkins~~~Configure System
          */
         private String alauncher;
+        private String almserver;
+        private String almport;
+        private static final String default_almport = "42424";
 
         /**
          * Constructor.
@@ -790,20 +804,40 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             // To persist global configuration information,
             // set that to properties and call save().
             this.alauncher    = formData.getString("alauncher");
+            this.almserver    = formData.getString("almserver");
+            this.almport 	  = formData.getString("almport");
             // ... data set, so call save():
             save();
             return super.configure(req,formData);
         }
 
-
-
-/**
- * Returns the currently configured a3 directory.
- *
- * @return java.lang.String
- */
+        /**
+         * Returns the currently configured a3 directory.
+         *
+         * @return java.lang.String
+         */
         public String getAlauncher() {
             return this.alauncher;
         }
-    }
+    
+    
+    	/**
+    	 * Returns the currently configured alm (AbsInt Licenseserver manager) server name
+    	 *
+    	 * @return java.lang.String
+    	 */
+         public String getAlmserver() {
+            return this.almserver;
+         }
+         
+         /**
+     	 * Returns the currently configured alm (AbsInt Licenseserver manager) server name
+     	 *
+     	 * @return java.lang.String
+     	 */
+         public String getAlmport() {
+             if (this.almport.equals("")) this.almport = DescriptorImpl.default_almport;
+        	 return this.almport;
+         }
+     }
 }
