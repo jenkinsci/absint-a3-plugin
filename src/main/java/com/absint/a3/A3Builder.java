@@ -33,6 +33,7 @@ import hudson.util.FormValidation;
 import hudson.model.AbstractProject;
 import hudson.model.Run;
 import hudson.model.TaskListener;
+import hudson.remoting.VirtualChannel;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import jenkins.tasks.SimpleBuildStep;
@@ -60,19 +61,22 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
     private static final String BUILD_NR    = "1.1.0";
 
+    //private String project_file, analysis_ids, pedantic_level, a3toolmode, export_a3apxworkspace;
     private String project_file, analysis_ids, pedantic_level, export_a3apxworkspace;
     private boolean copy_report_file, copy_result_file, skip_a3_analysis;
     
-    private A3ToolInstaller a3installer;
-
+    private String toolpath;
+    private String project_file_expanded;
+    
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
     public A3Builder(String project_file, String analysis_ids, String pedantic_level, String export_a3apxworkspace, boolean copy_report_file, boolean copy_result_file, boolean skip_a3_analysis)
     {
-        this.project_file   = project_file;
-        this.analysis_ids    = analysis_ids;
-        this.pedantic_level = pedantic_level;
-        this.export_a3apxworkspace = export_a3apxworkspace;
+        this.project_file   		= project_file;
+        this.analysis_ids    		= analysis_ids;
+        this.pedantic_level 		= pedantic_level;
+  //      this.a3toolmode            	= a3toolmode;
+        this.export_a3apxworkspace 	= export_a3apxworkspace;
         this.copy_report_file = copy_report_file;
         this.copy_result_file = copy_result_file;
         this.skip_a3_analysis = skip_a3_analysis;
@@ -108,7 +112,17 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     public String getPedantic_level() {
         return pedantic_level;
     }
- 
+    
+    /**
+     * Returns the currently set pedantic level used for the analysis run.
+     *
+     * return java.lang.String
+     *
+     * public String getA3toolmode() {
+     *     return a3toolmode;
+     *  }
+     */
+
     /**
      * Returns the currently set pedantic level used for the analysis run.
      *
@@ -172,11 +186,11 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      * @return String CommandLine String
      */
     public String builda3CmdLine(String reportFile, String resultFile, String apxWorkspacePath) {
-    	File alauncherObj = new File(a3installer.getPathToAlauncher());
+    	//File alauncherObj = new File(a3installer.getPathToAlauncher());
     	String batch_param = "-b";
     	String pedanticLevel = (!this.pedantic_level.equals("apx") ? "--pedantic-level " + this.pedantic_level : "");
-    	String apxWorkspacePath_param = (!apxWorkspacePath.equals("") ? "--export-workspace \"" + apxWorkspacePath + "\"" : "");
-    	StringBuffer cmd_buf = new StringBuffer(alauncherObj.toString() + " " + this.project_file + " " + batch_param + " " + reportFile + " " + resultFile + " " + pedanticLevel + " " + apxWorkspacePath_param + " ");
+    	String apxWorkspacePath_param = (!apxWorkspacePath.equals("") ? "--export-workspace " + apxWorkspacePath : "");
+    	StringBuffer cmd_buf = new StringBuffer(this.toolpath + " " + this.project_file_expanded + " " + batch_param + " " + reportFile + " " + resultFile + " " + pedanticLevel + " " + apxWorkspacePath_param + " ");
     	
     	// The Formvalidator guarantees a correct naming of the IDs
     	String[] analyses = analysis_ids.split(",");
@@ -194,8 +208,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      * @return String CommandLine String
      */
     private String builda3CmdLineInteractive(Vector<String> failedItems) {
-    	File alauncherObj = new File(a3installer.getPathToAlauncher());
-    	StringBuffer cmd_buf = new StringBuffer("\"" + alauncherObj.toString() + "\" \"" + this.project_file + "\"");
+    	//File alauncherObj = new File(a3installer.getPathToAlauncher());
+    	StringBuffer cmd_buf = new StringBuffer(this.toolpath + " " + this.project_file_expanded);
     	if (failedItems.size() > 0) {
     		String batch_param = "-B";
         	String pedanticHigh = "--pedantic-level warning";
@@ -214,7 +228,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      * @return String CommandLine String
      */
     private String builda3CmdLineWorkspace(String apxWorkspacePath_str) {
-    	String cmd = "\"" + (new File(a3installer.getPathToAlauncher())).toString() + "\" \"" + apxWorkspacePath_str + "\"";
+    	String cmd = this.toolpath + " " + apxWorkspacePath_str;
 		return cmd;
 	}
     
@@ -232,7 +246,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      * @return the input String with environment variables expanded to their current value
      */
      private static final String expandEnvironmentVarsHelper(
-                                    String cmdln, Map<String,String> envMap ) {
+                                    String cmdln, Map<String,String> envMap, A3ToolInstaller.OS nodeOS ) {
+    	if (cmdln == null) return ""; // null safe
         final String pattern = "\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}";
         final Pattern expr = Pattern.compile(pattern);
         Matcher matcher = expr.matcher(cmdln);
@@ -248,9 +263,15 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            subexpr = Pattern.compile(Pattern.quote(matcher.group(0)));
            cmdln = subexpr.matcher(cmdln).replaceAll(envValue);
         } 
-        return cmdln;  
+        
+        if(nodeOS == OS.UNIX) {
+            return cmdln.replace('\\','/');
+        } else {
+            return cmdln.replace('/','\\');
+        }
      }
     
+     
     
     @Override
     public void perform(Run<?,?> build, FilePath workspace, Launcher launcher, TaskListener listener) {
@@ -262,39 +283,52 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	listener.getLogger().println("[A3 Builder Note:] a³ analysis run has been (temporarily) deactivated. Skipping analysis run.\n");
         	return; // nothing to do, exit method.
         }
-        
-        
-        /*
-        String alauncher_str = getDescriptor().getAlauncher();
-        if (alauncher_str == null || alauncher_str.isEmpty()) {
-        	listener.getLogger().println("[A3 Builder Error:] a³ Configuration has not been done yet. Go to 'Manage Jenkins -> Configure System -> a³ Configuration' to complete configuration.\nAborting Build.\n");
-        	build.setResult(hudson.model.Result.FAILURE);
-         	return;
-        }
-        */
- 
+         
         try {
-            // Bind the actual environment to local variable "env"
-            Map<String,String> env = build.getEnvironment(listener);
+        	
+        	/*  ********************************
+        	 *  Bind some useful local variables
+        	 *  ********************************
+        	 */
             
-            // Extend environment by setting AI_LICENSE environement variable if ALM Server Host was specified in global configuration
-            if (!getDescriptor().getAlmserver().equals("")) { // if alm server host was specified 
-            	String alm_server_address = getDescriptor().getAlmserver() + "@" + getDescriptor().getAlmport();
-    	        
-    			String old_ai_license = env.put("AI_LICENSE", alm_server_address);
-    			if (old_ai_license!=null) {
-    				listener.getLogger().println("[A3 Builder Info:] Overwriting AI_LICENSE environment variable with value: " + alm_server_address );
-    			}
-            }	 
+        	A3ToolInstaller.OS nodeOS = (launcher.isUnix() ? OS.UNIX : OS.WINDOWS);
+            // The actual environment is in local variable "env"
+            Map<String,String> env = build.getEnvironment(listener);
+        	
+        	String almserver = getDescriptor().getAlmserver();
+        	String almport   = getDescriptor().getAlmport();
+        	
+        	String a3packages = expandEnvironmentVarsHelper(getDescriptor().getA3packages(), env, nodeOS);
+        	String alauncher  = expandEnvironmentVarsHelper(getDescriptor().getAlauncher(),  env, nodeOS);
+        	
+        	
+       	
+         	/*  **********************************
+        	 *  Expand variables with environment
+        	 *  **********************************
+        	 */
+        	
+        	project_file_expanded = expandEnvironmentVarsHelper(project_file, env, nodeOS);   				// String expanded_project_file !
+        	FilePath fpproject_file = new FilePath(workspace.getChannel(), project_file_expanded);
+        	project_file_expanded = (nodeOS == OS.UNIX ? "" : "\"") +  fpproject_file + (nodeOS == OS.UNIX ? "" : "\"");
 
             
-        	// Expand project file directory if required
-	        String expanded_project_file = expandEnvironmentVarsHelper(project_file, env);
+            // Extend environment by setting AI_LICENSE environement variable if ALM Server Host was specified in global configuration
+        	if (almserver != null && !almserver.isEmpty()){
+        		String alm_server_address = almserver + "@" + almport;
+        		
+    			String old_ai_license = env.put("AI_LICENSE", alm_server_address);
+    			if (old_ai_license != null) {
+    				listener.getLogger().println("[A3 Builder Info:] Overwriting AI_LICENSE environment variable (content: " + old_ai_license + ") with value: " + alm_server_address );
+    			}
+            }	 
+        		
+          		        
 	        // Let's parse the a3 project file
-	        listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + expanded_project_file);
+	        listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + fpproject_file);
 	        APXFileHandler apx;
 			try {
-				apx = new APXFileHandler(expanded_project_file, listener);
+				apx = new APXFileHandler(fpproject_file, listener);
 			} catch (IOException e) {
 	        	listener.getLogger().println("[A3 Builder Error:] IOException while accessing a³ .apx Project File. Check your project configuration 'Configure -> a³ Analysis Run -> Basic Settings -> Project File (APX).\nAborting Build.\n");
 	        	build.setResult(hudson.model.Result.FAILURE);
@@ -303,21 +337,36 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	        
 			// Extract Target Architecture from APX file
 			String target = apx.getTarget();
+
 			
-			// Determine the node OS, i.e. is the build step going to run on a windows or Unix node
-			A3ToolInstaller.OS node_os = (launcher.isUnix()? OS.UNIX : OS.WINDOWS);
+			/* Now determine the tool execution mode
+			 *   (1) installed
+			 *   (2) installer packages unpacked to ws and execution from there 
+			 */
 			
-			// Generate a3installer instance taking the path to installers (expanded) and Node OS as parameters
-			a3installer = new A3ToolInstaller(workspace, 
-											  expandEnvironmentVarsHelper(getDescriptor().getA3winpackage(), env), 
-											  expandEnvironmentVarsHelper(getDescriptor().getA3unixpackage(), env), 
-											  node_os);
+			A3ToolInstaller a3installer;
+			if (a3packages != null && !a3packages.isEmpty()) {
+				/* We are in mode (2) */
+				 a3installer = new A3ToolInstaller(workspace, 
+						  						   a3packages, 
+						  						   target,
+						  						   nodeOS);
+					
+				// unpack the installer to JS WS
+				a3installer.unpackInstallerPackage();
+					
+			} else {
+				/* We are in mode (1) */
+				 a3installer = new A3ToolInstaller(workspace, alauncher, nodeOS);
+			}
 			
-			a3installer.unpackInstallerPackage();
-			
-			String alauncher = a3installer.getPathToAlauncher();
-			
-			
+			//finally set the right toolpath
+			FilePath fptoolpath = a3installer.getToolFilePath();
+			this.toolpath = fptoolpath.toString();
+			if (nodeOS == OS.WINDOWS) {
+				this.toolpath = "\"" + this.toolpath + "\"";  // surround the tool path by "..." for the case there are empty spaces in the path
+			}
+					
 	        // Generate an absint_a3 subdirectory in the Jenkins workspace
 	        FilePath absint_a3_dir = new FilePath(workspace, "absint-a3-b" + build.getNumber());
 	        try {
@@ -326,27 +375,27 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 				// Subdirectory a3 workspace could not be created, use workspace
 				listener.getLogger().println("[A3 Builder Warning:] a3 workspace directory could not be created in Jenkins workspace. Output will be written to Jenkins workspace instead.");
 				absint_a3_dir = workspace;
-			}
-       
-  			
+			}  			
 	        
             // Perform compatibility Check: Jenkins Plugin and a3
 
-            File a3versionFileInfo = new File(absint_a3_dir.toString() + "/" + "a3-"+target+"-version-b"+build.getNumber()+".info");
+            FilePath a3versionFileInfo = new FilePath(absint_a3_dir, "a3-"+target+"-version-b"+build.getNumber()+".info");
             listener.getLogger().println("[A3 Builder Note:] Perform a³ Compatibility Check ... ");
-            String checkcmd = alauncher + " -b " + target + " --version-file \"" + a3versionFileInfo.toString() + "\"";
-        	// Expand system environment variables in command line
-            checkcmd = expandEnvironmentVarsHelper(checkcmd, env);
+          
+            String checkcmd = toolpath + " -b " + target + " --version-file \"" + a3versionFileInfo + "\"";
             Proc check = launcher.launch(checkcmd, 
             							 env, 
             							 listener.getLogger(), 
             							 workspace);
 	        check.join();          // wait for alauncher to finish
+	        
 	        boolean checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3build, a3versionFileInfo); 
 	        listener.getLogger().println(checkOK ? "[A3 Builder Note:] Compatibility Check [OK]" : "");
+	        
+	        /*
 	        // Try to delete the temporary generated version info file again.
 	        try { 
-	        	Files.delete(a3versionFileInfo.toPath());
+	        	//**** Files.delete(a3versionFileInfo.toPath());
 	        } catch (NoSuchFileException x) {
 	        	listener.getLogger().println("[A3 Builder Info:] No such file or directory. Temporary version file could not be deleted again.");
 	        } catch (DirectoryNotEmptyException x) {
@@ -355,6 +404,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	            // File permission problems are caught here.
 	        	listener.getLogger().println("[A3 Builder Info:] File Permission Problem. Temporary version file could not be deleted again.");
 	        }
+	        */
 	        
 	        if (!checkOK) {
 	        	listener.getLogger().println("[A3 Builder Error:] This version of the " + PLUGIN_NAME + " requires an a³ for " + target + " " + XMLResultFileHandler.required_a3version + " " + XMLResultFileHandler.required_a3build + " or newer!\n" +
@@ -363,23 +413,25 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	         	build.setResult(hudson.model.Result.FAILURE);
 	         	return;        	 
 	        }
-	        
+
 			// Get the report/XML result file locations
-			String reportfile, resultfile;
-			String reportfileParam, resultfileParam;
+			FilePath reportfile, resultfile;
+			String reportfileParam, resultfileParam, reportfile_str, resultfile_str ;
 			reportfile  = apx.getReportFile();
 			resultfile  = apx.getResultFile();
 	
 			//Generate temporary report/result file only if no report/result file entry in apx found
 			if (reportfile == null) {
-				reportfile = (new File(absint_a3_dir.toString() + "/" + "a3-report-b" + build.getNumber()+".txt")).toString();
-				reportfileParam = "--report-file \"" + reportfile + "\"" ;
+				reportfile = new FilePath(absint_a3_dir, "a3-report-b" + build.getNumber()+".txt");
+				reportfile_str = (nodeOS == OS.UNIX ? "" : "\"") + reportfile + (nodeOS == OS.UNIX ? "" : "\"");
+				reportfileParam = "--report-file " + reportfile_str;
 			} else {
 				reportfileParam = "";
 			}
 			if (resultfile == null) {
-				resultfile = (new File(absint_a3_dir.toString() + "/" + "a3-xml-result-b" + build.getNumber()+".xml")).toString();
-				resultfileParam = "--xml-result-file \"" + resultfile + "\"";
+				resultfile = new FilePath(absint_a3_dir, "a3-xml-result-b" + build.getNumber()+".xml");
+				resultfile_str = (nodeOS == OS.UNIX ? "" : "\"") + resultfile + (nodeOS == OS.UNIX ? "" : "\"");
+				resultfileParam = "--xml-result-file " + resultfile_str;
 			} else {
 				resultfileParam = "";
 			}
@@ -387,25 +439,28 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 			listener.getLogger().println("                   Textual Report File : " + reportfile);
 			listener.getLogger().println("                   XML Result File     : " + resultfile);
 	
+			
 			/* Determine the directory where to store a3 apx workspace, if any shall be exported */
-			String apxWorkspacePath_str = (apx.getAPXFile().getName()) + "-workspace-jb" + build.getNumber() + ".apx";
+			String apxWorkspacePath_str = (apx.getAPXFile().getBaseName()) + "-workspace-jb" + build.getNumber() + ".apx";
 			switch(this.export_a3apxworkspace) {
 				case ("apx_dir"): 
-					apxWorkspacePath_str = (new File(apx.getAPXFile().getParent() + "/" + apxWorkspacePath_str)).getPath();
+					apxWorkspacePath_str = new FilePath(apx.getAPXFile().getParent(), apxWorkspacePath_str).toString();
 					break;
 				case ("jenkins_workspace"):
-					apxWorkspacePath_str = (new FilePath(absint_a3_dir, apxWorkspacePath_str)).toString();
+					apxWorkspacePath_str = new FilePath(absint_a3_dir, apxWorkspacePath_str).toString();
 					break;
 				default: // disabled case
 					apxWorkspacePath_str = ""; 
 			}
+			
+			if (!apxWorkspacePath_str.isEmpty() && nodeOS != OS.UNIX ) apxWorkspacePath_str = "\"" + apxWorkspacePath_str + "\"";
 			
 			if (!this.export_a3apxworkspace.equals("disabled")) {
 				listener.getLogger().println("                   a³ Workspace File   : " + apxWorkspacePath_str);
 			}
 
 			/* Prepare the <Analysis ID, HTML Report File> Map */
-			HashMap<String, File> id2htmlreportMap = new HashMap<String, File>();
+			HashMap<String, FilePath> id2htmlreportMap = new HashMap<String, FilePath>();
 			apx.fillIDtoHTMLReportMap(id2htmlreportMap);
 						
 			/*
@@ -414,8 +469,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 			
 			int exitCode = -1;
 			String cmd = builda3CmdLine(reportfileParam, resultfileParam, apxWorkspacePath_str);
-			// Expand environment variables in the command line
-			cmd = expandEnvironmentVarsHelper(cmd, env);
+            listener.getLogger().println("[A3 Builder Note:] DEBUG cmd line: " + cmd);
 
 			long time_before_launch = System.currentTimeMillis() / 1000 * 1000;
         	
@@ -430,22 +484,22 @@ public class A3Builder extends Builder implements SimpleBuildStep {
              */
             if (this.copy_report_file){
             	listener.getLogger().println("[A3 Builder Note:] Copy a³ report file to Jenkins a3workspace ...");
-            	copyReportFileToWorkspace(reportfile, absint_a3_dir.toString(), build.getNumber(), listener);
+            	copyReportFileToWorkspace(reportfile, absint_a3_dir, build.getNumber(), listener);
             }
             
             if (this.copy_result_file){
                 listener.getLogger().println("[A3 Builder Note:] Copy a³ XML result file to Jenkins a3workspace ...");
-                copyXMLResultFileToWorkspace(resultfile, absint_a3_dir.toString(), build.getNumber(), listener);
+                copyXMLResultFileToWorkspace(resultfile, absint_a3_dir, build.getNumber(), listener);
             }
              
             // Copy all the HTML Report Files
             if (!id2htmlreportMap.isEmpty()) {
                 listener.getLogger().println("[A3 Builder Note:] Copy a³ HTML report file(s) to Jenkins a3workspace ...");
                	
-                for (Map.Entry<String, File> entry : id2htmlreportMap.entrySet()) {
+                for (Map.Entry<String, FilePath> entry : id2htmlreportMap.entrySet()) {
                 	String id = entry.getKey();
-              		File html_report_file = entry.getValue();
-               		copyHTMLReportFileToWorkspace(html_report_file.toString(), absint_a3_dir.toString(), id, build.getNumber(), listener);
+              		FilePath html_report_file = entry.getValue();
+               		copyHTMLReportFileToWorkspace(html_report_file, absint_a3_dir, id, build.getNumber(), listener);
                	}
             }
             
@@ -465,7 +519,6 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             	if (exitCode == 0) {
             		listener.getLogger().println("                    Check the project maually:\n");
               		cmd = builda3CmdLineInteractive(failedItems);
-              		cmd = expandEnvironmentVarsHelper(cmd, env);
                		listener.getLogger().println(cmd + "\n");
             	}
             }            
@@ -498,7 +551,6 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            		} else {
            			cmd = builda3CmdLineInteractive(failedItems);
            		}
-          		cmd = expandEnvironmentVarsHelper(cmd, env);
            		listener.getLogger().println(cmd + "\n");
             }
 
@@ -547,11 +599,11 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      * Returns true  - if the alauncher would call a build >= the required build
      * Returns false - otherwise
      */
-	private boolean checkA3Compatibility(String required_a3build, File a3versionFileInfo) {
+	private boolean checkA3Compatibility(String required_a3build, FilePath a3versionFileInfo) {
 		try {
             BufferedReader br = new BufferedReader(
                     				new InputStreamReader(
-                    					new FileInputStream(a3versionFileInfo), "UTF-8" ));
+                    					a3versionFileInfo.read(), "UTF-8" ));
             
             for (String line = br.readLine(); line != null; line = br.readLine()) {
             	if (lineContainsBuildNumber(line)) {  // line with build looks like this: "This is a3 build 123456" (older alauncher versions)  or  "Build: 123456" (newer alauncher versions)
@@ -563,7 +615,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 
 			return false;
 						
-		} catch (IOException e) {
+		} catch (IOException | InterruptedException e) {
 			return false;
 		}
 	}
@@ -582,9 +634,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     }
         
     /* Small Helper Copy Functions */
-    private void copyElementFileToWorkspace(String src, String workspace, Element elem, String id, int build, TaskListener listener) {
-    	 // Open Source File (Report/XML result File)
-    	 File sourcefile = new File(src);
+    private void copyElementFileToWorkspace(FilePath src, FilePath workspace, Element elem, String id, int build, TaskListener listener) {
+    	
     	 String suffix = "";
 
     	 switch(elem) {
@@ -602,18 +653,18 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	 		listener.getLogger().println("[A3 Builder ElementFile Copy Note:] " + id + " not a defined element.");
     	 }
     	    	 
-    	 String dest = workspace + "/" + "a3-" + id + "-b" + build + "-copy" + suffix;
-    	 File destfile = new File(dest);
+    	 String dest =  "a3-" + id + "-b" + build + "-copy" + suffix;
+    	 FilePath destfile = new FilePath(workspace, dest);
 
-    	 File parentDestFile = destfile.getParentFile();
-    	 File parentSourceFile = sourcefile.getParentFile();
+//    	 FilePath parentDest = destfile.getParentFile();
+    	 FilePath parentSourceFile = src.getParent();
     	 
-    	 if (parentDestFile == null) { // Critical issue because this means no subdirectory for absint-a3-b<NR> was created
-    		 listener.getLogger().println("[A3 Builder ElementFile Copy Exception:] Destination file has no parent directory. (Inconsistent state) => Copy process is aborted.");
-    		 return;
-    	 }
+//    	 if (parentDestFile == null) { // Critical issue because this means no subdirectory for absint-a3-b<NR> was created
+//    		 listener.getLogger().println("[A3 Builder ElementFile Copy Exception:] Destination file has no parent directory. (Inconsistent state) => Copy process is aborted.");
+//    		 return;
+//    	 }
 
-    	 if (parentSourceFile != null && parentSourceFile.compareTo(parentDestFile) == 0) {
+    	 if (parentSourceFile != null && parentSourceFile.equals(workspace)) {
     		 listener.getLogger().println("[A3 Builder ElementFile Copy Note:] " + id + " source and destination directory are the same. No copy needed.");
     		 return; // Then src and dest are the same file, don't copy
     	 }
@@ -623,12 +674,18 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     		 // Input File
 	    	 BufferedReader br = new BufferedReader(
 	    			 				new InputStreamReader(
-	    			 					new FileInputStream(sourcefile), "UTF-8"));
-
+	    			 						src.read()
+	    			 						)
+	    			 				);
+	    			 				//new FileInputStream(src), "UTF-8"));
+	    	 
 	    	 // Output File
 	    	 BufferedWriter bw = new BufferedWriter(
 	    			 				new OutputStreamWriter(
-	    			 					new FileOutputStream(destfile.getAbsoluteFile()), "UTF-8"));
+	    			 						destfile.write()
+	    			 						)
+	    			 				);
+	    			 				//new FileOutputStream(destfile.getAbsoluteFile()), "UTF-8"));
 	    			 
 	    	 // Copy Content
 	    	 while(br.ready()) {
@@ -640,19 +697,20 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     		 listener.getLogger().println("[A3 Builder FileNotFound Exception:] Source file " + src + " could not be found! Aborting copy process to Jenkins a3 workspace.");
     	 } catch (IOException e) {
     		 listener.getLogger().println("[A3 Builder IOException:] Destination file " + dest + " could not be written! Aborting copy process to Jenkins a3 workspace.");
-    	 }
-
+    	 } catch (InterruptedException e) {
+    		 listener.getLogger().println("[A3 Builder InterruptedException:] Destination file " + dest + " could not be written! Aborting copy process to Jenkins a3 workspace.");
+		}
     }
 
-    private void copyReportFileToWorkspace(String src, String workspace, int build, TaskListener listener) {
+    private void copyReportFileToWorkspace(FilePath src, FilePath workspace, int build, TaskListener listener) {
     	copyElementFileToWorkspace(src, workspace,  Element.REPORT, "report", build, listener);
     }
 
-    private void copyXMLResultFileToWorkspace(String src, String workspace, int build, TaskListener listener) {
+    private void copyXMLResultFileToWorkspace(FilePath src, FilePath workspace, int build, TaskListener listener) {
     	copyElementFileToWorkspace(src, workspace, Element.XML_RESULT, "xml-result", build, listener);
     }
 
-    private void copyHTMLReportFileToWorkspace(String src, String workspace, String id, int build, TaskListener listener) {
+    private void copyHTMLReportFileToWorkspace(FilePath src, FilePath workspace, String id, int build, TaskListener listener) {
     	copyElementFileToWorkspace(src, workspace, Element.HTML, id, build, listener);
     }
     
@@ -676,8 +734,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
          * Properties set by the TimingProfiler configuration mask:
          *     Jenkins~~~Manage Jenkins~~~Configure System
          */
-		private String a3winpackage;
-		private String a3unixpackage;
+		private String alauncher;
+		private String a3packages;
         private String almserver;
         private String almport;
 
@@ -752,41 +810,39 @@ public class A3Builder extends Builder implements SimpleBuildStep {
        } 
 
 
-/**
- * Performs on-the-fly validation of the form field 'a3winpackage'.
- *
- * @param value           The value that the user has typed.
- * @return
- *      Indicates the outcome of the validation. This is sent to the browser.
- *      <br>
- *      Note that returning {@link FormValidation#error(String)} does not
- *      prevent the form from being saved. It just means that a message
- *      will be displayed to the user.
- * @throws IOException             as super class
- * @throws ServletException        as super class
- **/
-        public FormValidation doCheckA3winpackage(@QueryParameter String value)
-                throws IOException, ServletException {
+       /**
+        * Performs on-the-fly validation of the form field 'alauncher'.
+        *
+        * @param value           The value that the user has typed.
+        * @return
+        *      Indicates the outcome of the validation. This is sent to the browser.
+        *      <br>
+        *      Note that returning {@link FormValidation#error(String)} does not
+        *      prevent the form from being saved. It just means that a message
+        *      will be displayed to the user.
+        * @throws IOException             as super class
+        * @throws ServletException        as super class
+        **/
+               public FormValidation doCheckAlauncher(@QueryParameter String value)
+                       throws IOException, ServletException {
 
-        	if(value == null || value.trim().equals("") )
-                return FormValidation.warning("No installer package file specified.");
-        	
-            if(containsEnvVars(value)) {
-                return FormValidation.warning("The specified path contains an environment variable, please make sure that the constructed path is correct.");
-             }
-        	
-        	File ftmp = new File(value);
-            if (!ftmp.exists())
-                return FormValidation.error("Specified file not found.");
-            if (!ftmp.canRead())
-                return FormValidation.error("Specified file cannot be read.");
-            if (!value.endsWith(".zip"))
-                return FormValidation.warning("The specified file exists, but does not have the expected suffix (.zip).");
-            return FormValidation.ok();
-        }
+               	if(value == null || value.trim().equals("") )
+                       return FormValidation.warning("No path specified. Make sure that you provide a \"Path to a³ installation packages\" below OR that the \"alauncher[.exe]\" program is in the host PATH environment!");
+               	
+                   if(containsEnvVars(value)) {
+                       return FormValidation.warning("The specified path contains an environment variable, please make sure that the constructed path is correct.");
+                    }
+               	
+               	File ftmp = new File(value);
+            	if (!ftmp.exists())
+                    return FormValidation.error("Specified path not found.");
+            	if (ftmp.isFile())
+            		return FormValidation.error("You specified a file but not a path. (Probably remove \"alauncher[.exe]\" from the specification)!");
+                return FormValidation.ok();
+               }
 
         /**
-         * Performs on-the-fly validation of the form field 'a3winpackage'.
+         * Performs on-the-fly validation of the form field 'a3packages'.
          *
          * @param value           The value that the user has typed.
          * @return
@@ -798,25 +854,23 @@ public class A3Builder extends Builder implements SimpleBuildStep {
          * @throws IOException             as super class
          * @throws ServletException        as super class
          **/
-                public FormValidation doCheckA3unixpackage(@QueryParameter String value)
-                        throws IOException, ServletException {
+        public FormValidation doCheckA3packages(@QueryParameter String value)
+                throws IOException, ServletException {
 
-                	if(value == null || value.trim().equals("") )
-                        return FormValidation.warning("No installer package file specified.");
-                	
-                    if(containsEnvVars(value)) {
-                        return FormValidation.warning("The specified path contains an environment variable, please make sure that the constructed path is correct.");
-                     }
-                	
-                	File ftmp = new File(value);
-                    if (!ftmp.exists())
-                        return FormValidation.error("Specified file not found.");
-                    if (!ftmp.canRead())
-                        return FormValidation.error("Specified file cannot be read.");
-                    if (!value.endsWith(".tgz"))
-                        return FormValidation.warning("The specified file exists, but does not have the expected suffix (.tgz).");
-                    return FormValidation.ok();
-                }
+        	if(value == null || value.trim().equals("") )
+                return FormValidation.ok("No path to installer packages specified. Make sure that an installed \"alauncher\" program will be found.");
+        	
+            if(containsEnvVars(value)) {
+                return FormValidation.warning("The specified path contains an environment variable, please make sure that the constructed path is correct.");
+             }
+        	
+        	File ftmp = new File(value);
+        	if (!ftmp.exists())
+                return FormValidation.error("Specified path not found.");
+        	if (ftmp.isFile())
+        		return FormValidation.error("You specified a file but not the path containing the install packages!");
+            return FormValidation.ok();
+        }
         
 /**
  * Performs on-the-fly validation of the form field 'project_file'.
@@ -871,8 +925,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         public boolean configure(StaplerRequest req, JSONObject formData) throws FormException {
             // To persist global configuration information,
             // set that to properties and call save().
-            this.a3winpackage    = formData.getString("a3winpackage");
-            this.a3unixpackage   = formData.getString("a3unixpackage");
+            this.alauncher    = formData.getString("alauncher");
+            this.a3packages   = formData.getString("a3packages");
             this.almserver    = formData.getString("almserver");
             this.almport 	  = formData.getString("almport");
             // ... data set, so call save():
@@ -885,8 +939,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
          *
          * @return java.lang.String
          */
-        public String getA3winpackage() {
-            return this.a3winpackage;
+        public String getAlauncher() {
+            return this.alauncher;
         }
     
         /**
@@ -894,8 +948,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
          *
          * @return java.lang.String
          */
-        public String getA3unixpackage() {
-            return this.a3unixpackage;
+        public String getA3packages() {
+            return this.a3packages;
         }
     
     	/**

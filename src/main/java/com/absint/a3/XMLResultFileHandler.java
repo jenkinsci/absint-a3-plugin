@@ -41,6 +41,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import hudson.FilePath;
 import hudson.model.TaskListener;
 
 public class XMLResultFileHandler {
@@ -54,7 +55,7 @@ public class XMLResultFileHandler {
 	
 	private TaskListener listener;	
 	private Document xmldoc;
-	private	File inputXMLFile;
+	private	FilePath inputXMLFile;
 	private int build;
 	
 	public static final String required_a3build   = "Build: 268982";
@@ -66,8 +67,9 @@ public class XMLResultFileHandler {
 	 * @param build current build number 
 	 * @param listener TaskListener for Console Output
 	 */
-	public XMLResultFileHandler(String filename, int build, TaskListener listener){
+	public XMLResultFileHandler(FilePath filename, int build, TaskListener listener){
 			
+		this.inputXMLFile = filename;
 		this.listener = listener;
 		this.build = build;
 		
@@ -76,10 +78,8 @@ public class XMLResultFileHandler {
 		
 		try {
 			DocumentBuilder builder = factory.newDocumentBuilder();
-		
-			inputXMLFile = new File(filename);
 
-			xmldoc = builder.parse(inputXMLFile);
+			xmldoc = builder.parse(inputXMLFile.read());
 			xmldoc.getDocumentElement().normalize();		
 		
 		} catch (ParserConfigurationException e) {
@@ -88,7 +88,7 @@ public class XMLResultFileHandler {
 		} catch (UnsupportedEncodingException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		} catch (IOException e) {
+		} catch (IOException | InterruptedException e) {
 			listener.getLogger().println("[IOException:] XML Result File <" + filename + "> was not found!");
 		} catch (SAXException e) {
 			listener.getLogger().println("[SAX/IOException:] XML Result File <" + filename + "> was not found!");
@@ -105,7 +105,7 @@ public class XMLResultFileHandler {
 	 * 		   true  - if there was at least one failed analysis
 	 * 		   false - if there was no failed analysis
 	 */
-	public boolean prettyPrintResultsAndCollectFailedItems(Vector<String> failed_items, HashMap<String, File> id2htmlmap) {
+	public boolean prettyPrintResultsAndCollectFailedItems(Vector<String> failed_items, HashMap<String, FilePath> id2htmlmap) {
 		Element rootNode = xmldoc.getDocumentElement(); // must be results.
 		NodeList resultsList = rootNode.getElementsByTagName("result");
 
@@ -293,7 +293,7 @@ public class XMLResultFileHandler {
 	* Returns XML Result File Object
 	* @return File - XML Result File Object
 	*/
-	public File getXMLResultFile() {
+	public FilePath getXMLResultFile() {
 		return this.inputXMLFile;
 	}
 

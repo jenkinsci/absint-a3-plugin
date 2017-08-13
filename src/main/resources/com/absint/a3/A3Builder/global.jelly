@@ -12,13 +12,13 @@
     tags they use. Views are always organized according to its owner class,
     so it should be straightforward to find them.
   -->
-  <f:section title="AbsInt a³ Installer Packages">
-    <f:entry title="a³ Windows installation package" field="a3winpackage"
-      description="Specify the path where the a³ Windows installation package is located.">
+  <f:section title="a³ Configuration">
+    <f:entry title="AbsInt Launcher Program" field="alauncher"
+      description="Specify the path to your local AbsInt Launcher (alauncher)">
       <f:textbox />
     </f:entry>
-    <f:entry title="a³ Unix installation package" field="a3unixpackage"
-      description="Specify the path where the a³ Unix installation package is located.">
+    <f:entry title="Path to a³ installation packages" field="a3packages"
+      description="Specify the path where the a³ installation packages are located.">
       <f:textbox />
     </f:entry>
   </f:section>

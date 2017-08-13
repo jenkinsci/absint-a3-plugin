@@ -3,53 +3,45 @@ package com.absint.a3;
 import hudson.FilePath;
 
 import java.io.*; 
-import java.net.URL; 
-import java.util.ArrayList; 
-import java.util.List; 
 
 public class A3ToolInstaller {
 
 	private FilePath packagepath;
 	private FilePath workspace;
-	
-	private String arch;
-	private String alauncher;
-	
+	private String target;
+	private FilePath toolpath;
 	
 	public static enum OS { 
     	WINDOWS, UNIX
     }
 	
-	private OS os;
+	private OS nodeOS;
 
-	
-	/** Temp File **/
-    public static String tmpFile;    
-    static { 
-        tmpFile = System.getProperty("java.io.tmpdir"); 
-    } 
-	
-	public A3ToolInstaller (FilePath ws, String winpck, String unixpck, OS os) {
+
+
+	public A3ToolInstaller (FilePath ws, String packagepath, String target, OS nodeOS) {
 		
 		this.workspace = ws;
-		this.os = os;
+		this.nodeOS = nodeOS;
+		this.packagepath = new FilePath(new File(packagepath));
+		this.target = target;
 		
-		switch (os) {
-		case WINDOWS: 
-			this.packagepath = new FilePath(new File(winpck));
-			this.alauncher = "alauncher.exe";
-			break;
-		case UNIX:
-			this.alauncher = "alauncher";
-			this.packagepath = new FilePath(new File(unixpck));
-			break;
-		}
+		this.toolpath = null; // TBD
+		
 	}	
 		
+	public A3ToolInstaller(FilePath ws, String launcherpath, OS nodeOS) {
+		this.workspace = ws;
+		this.nodeOS = nodeOS;
+		String alauncherbin = "alauncher" + (nodeOS == OS.WINDOWS ? ".exe" : "");	
+		
+		toolpath = new FilePath(this.workspace.getChannel(), launcherpath + (nodeOS == OS.UNIX ? "/" : "\\") + alauncherbin);
+	}
+
 	public void unpackInstallerPackage() {
 		
 		try {
-			switch (this.os) {
+			switch (this.nodeOS) {
 				case WINDOWS:				
 					packagepath.unzip(workspace);
 					break;
@@ -66,9 +58,9 @@ public class A3ToolInstaller {
 		}
 	}
 	
-	public String getPathToAlauncher() {
+	public FilePath getToolFilePath() {
 		// TODO Auto-generated method stub
-		return this.alauncher;
+		return this.toolpath;
 	}
 	
 	

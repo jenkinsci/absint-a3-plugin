@@ -28,7 +28,15 @@
   </f:section>
 
  <f:section title="Options">
-
+ <!-- Currently use fuzzy logic to determine a3 tool installation mode
+   <f:entry title="a³ tool execution mode" name="a3toolmode" field="a3toolmode">
+    <select name="a3toolmode">
+        <f:option value="installed" selected="${instance.getA3toolmode() == 'installed'}">Use installed a³</f:option>
+        <f:option value="tempcopy" selected="${instance.getA3toolmode() == 'tempcopy'}">Use temporary copy of a³ in WS</f:option>
+      </select>
+   </f:entry> 
+ -->
+ 
   <f:entry title="Export a³ workspace (.apx) file " name="export_a3apxworkspace" field="export_a3apxworkspace">
     <select name="export_a3apxworkspace">
         <f:option value="disabled" selected="${instance.getExport_a3apxworkspace() == 'disabled'}">disabled</f:option>
