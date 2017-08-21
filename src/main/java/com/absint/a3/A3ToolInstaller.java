@@ -55,13 +55,23 @@ public class A3ToolInstaller {
 		this.toolpath = null;  // If something goes wrong determining the toolpath, the variable keeps its initial value = null.
 		this.packagepath = new FilePath(this.workspace.getChannel(), packagepath_str);
     	   	
-		try {
-			
+		try {			
 			// Start with initial selection
 			this.build = -1;
 			this.selected_installer = null;
 			
-			List<FilePath> files = this.packagepath.list();		
+			List<FilePath> files = this.packagepath.list();	
+			/* Does not work as Filter is not serializable 
+			final String match_prefix =  "a3_" + target + "_" + expected_os + "_b";
+			final String match_suffix =  "release."+ expected_suffix;
+			List<FilePath> files = this.packagepath.list(new FileFilter() {				
+				@Override
+				public boolean accept(File pathname) {
+					return (pathname.getName().startsWith(match_prefix) &&
+						//	pathname.getName().endsWith(match_suffix));
+				}
+			});
+			*/
 			if (files == null) {
 				listener.getLogger().println("[A3 ToolInstaller Error:] Path to a³ installation packages could not be accessed: " + this.packagepath);
 				throw new IOException();
@@ -133,9 +143,23 @@ public class A3ToolInstaller {
 		this.workspace = ws;
 		this.nodeOS = nodeOS;
 		this.target = null; // not used in that mode
-		String alauncherbin = "alauncher" + (nodeOS == OS.WINDOWS ? ".exe" : "");	
 		
-		toolpath = new FilePath(this.workspace.getChannel(), launcherpath + (nodeOS == OS.UNIX ? "/" : "\\") + alauncherbin);
+		toolpath = new FilePath(this.workspace.getChannel(), launcherpath); // Will generate an object (!= null) in any case, 
+																			// even if the launcherpath does not exist or equals("") => 
+																			// This case will be catched in the A3Builder:Run
+		try {
+			String alauncherbin = "alauncher" + (nodeOS == OS.WINDOWS ? ".exe" : "");
+			if (toolpath.isDirectory()) {
+				// new standard mode: User has entered just the path to the alauncher binary
+				toolpath = new FilePath(toolpath, alauncherbin); // add the "alauncher[.bin]" to the toolpath directory
+			} else {
+				// compatibility mode: User directly specified a binary but is it really the alauncher binary?
+				// If the toolpath references a file, there must be a Parentdir, ignore the filename and take the one for the current OS
+				toolpath = new FilePath(toolpath.getParent(), alauncherbin);				
+			}
+		} catch (IOException | InterruptedException e) {
+			// Do nothing, toolpath variable will have an instance in any case
+		}
 	}
 
 	

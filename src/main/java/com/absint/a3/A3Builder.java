@@ -27,29 +27,23 @@
 package com.absint.a3;
 import hudson.Proc;
 import hudson.Launcher;
+import hudson.Launcher.ProcStarter;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.util.FormValidation;
 import hudson.model.AbstractProject;
 import hudson.model.Run;
 import hudson.model.TaskListener;
-import hudson.remoting.VirtualChannel;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
-import org.xml.sax.SAXException;
-
 import com.absint.a3.A3ToolInstaller.OS;
-
 import org.kohsuke.stapler.QueryParameter;
 import javax.servlet.ServletException;
 import java.io.*;
-import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -311,8 +305,24 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	String a3packages = expandEnvironmentVarsHelper(getDescriptor().getA3packages(), env, nodeOS);
         	String alauncher  = expandEnvironmentVarsHelper(getDescriptor().getAlauncher(),  env, nodeOS);
        	
-         	/*  **********************************
-        	 *  Expand variables with environment
+
+        	/*  **************************************************************************
+        	 *  Extend Environment Map with ALM Server and Port Configuration if specified
+        	 *  ************************************************************************** */
+        	
+            // Extend environment by setting AI_LICENSE environement variable if ALM Server Host was specified in global configuration
+         	if (almserver != null && !almserver.isEmpty()){
+         		String alm_server_address = almserver + "@" + almport;
+         		
+     			String old_ai_license = env.put("AI_LICENSE", alm_server_address);
+     			if (old_ai_license != null) {
+     				listener.getLogger().println("[A3 Builder Info:] Overwriting AI_LICENSE environment variable (content: " + old_ai_license + ") with value: " + alm_server_address );
+     			}
+             }	 
+       	
+        	
+        	/*  **********************************
+        	 *   APX Project File Handling
         	 *  **********************************
         	 */
         	
@@ -320,18 +330,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	FilePath fpproject_file = new FilePath(workspace.getChannel(), project_file_expanded);
         	project_file_expanded = quoteIt(fpproject_file.toString(), nodeOS);
             
-            // Extend environment by setting AI_LICENSE environement variable if ALM Server Host was specified in global configuration
-        	if (almserver != null && !almserver.isEmpty()){
-        		String alm_server_address = almserver + "@" + almport;
-        		
-    			String old_ai_license = env.put("AI_LICENSE", alm_server_address);
-    			if (old_ai_license != null) {
-    				listener.getLogger().println("[A3 Builder Info:] Overwriting AI_LICENSE environment variable (content: " + old_ai_license + ") with value: " + alm_server_address );
-    			}
-            }	 
-        		
-          		        
-	        // Let's parse the a3 project file
+            // Let's parse the a3 project file
 	        listener.getLogger().println("[A3 Builder Note:] a³ Project File     : " + fpproject_file);
 	        APXFileHandler apx;
 			try {
@@ -365,16 +364,17 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 			} else {
 				/* We are in standard mode (1) */
 				a3installer = new A3ToolInstaller(workspace, alauncher, nodeOS, listener);
-			}
-			
+			}			
 			
 			//finally set the right toolpath
 			FilePath fptoolpath = a3installer.getToolFilePath();
-			if (!fptoolpath.exists()) {
-				listener.getLogger().println("[A3 Builder Error:] " + fptoolpath + " does not exist!\n         Check a³ Configuration in Jenkins Configuration.");
-	         	build.setResult(hudson.model.Result.FAILURE);
-	         	return;
-			}
+			
+//			if (!fptoolpath.exists()) {
+//				listener.getLogger().println("[A3 Builder Error:] " + fptoolpath + " does not exist!\n         Check a³ Configuration in Jenkins Configuration.");
+//	         	build.setResult(hudson.model.Result.FAILURE);
+//	         	return;
+//			}
+			
 			this.toolpath = quoteIt(fptoolpath.toString(), nodeOS); // surround the tool path by "..." for the case there are empty spaces in the path
 					
 	        // Generate an absint_a3 subdirectory in the Jenkins workspace
@@ -392,46 +392,40 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	 *  ***************************************************
         	 */
 
-	        boolean checkOK = false;
+	        long extractedBuild = 0; 	        
 	        if (fptoolpath.getName().startsWith("alauncher")) {
-	        
+	            // The more difficult case to determine currently used a3 build number
 	            FilePath a3versionFileInfo = new FilePath(absint_a3_dir, "a3-"+target+"-version-b"+build.getNumber()+".info");
 	            listener.getLogger().println("[A3 Builder Note:] Perform a³ Compatibility Check ... ");
 	          
 	            String checkcmd = toolpath + " -b " + target + " --version-file \"" + a3versionFileInfo + "\"";
-	            Proc check = launcher.launch(checkcmd, 
-	            							 env, 
-	            							 listener.getLogger(), 
-	            							 workspace);
+
+	            // Prepare start of the analysis process for version checking
+	            ProcStarter procstarter = launcher.new ProcStarter();
+		            procstarter.cmdAsSingleString(checkcmd);
+		            procstarter.envs(env);
+		            procstarter.stdout(listener.getLogger());
+		            procstarter.pwd(workspace);
+				
+		        Proc check = launcher.launch(procstarter);
 		        check.join();          // wait for alauncher to finish
 		        
-		        checkOK = checkA3Compatibility(XMLResultFileHandler.required_a3build, a3versionFileInfo); 
+		        extractedBuild = extractBuildNrFromVersionFile(a3versionFileInfo); 
 	        } else {
-	        	checkOK = (a3installer.getBuildNr() >= extractBuildNumber(XMLResultFileHandler.required_a3build));        	
+	        	// the easy way, take it from the installer package file name :)
+	        	extractedBuild = a3installer.getBuildNr();        	
 	        }		        
-		        
-	        listener.getLogger().println(checkOK ? "[A3 Builder Note:] Compatibility Check [OK]" : "");
-		        
-		        /*
-		        // Try to delete the temporary generated version info file again.
-		        try { 
-		        	//**** Files.delete(a3versionFileInfo.toPath());
-		        } catch (NoSuchFileException x) {
-		        	listener.getLogger().println("[A3 Builder Info:] No such file or directory. Temporary version file could not be deleted again.");
-		        } catch (DirectoryNotEmptyException x) {
-		        	listener.getLogger().println("[A3 Builder Info:] Directory not empty. Temporary version file could not be deleted again.");
-		        } catch (IOException x) {
-		            // File permission problems are caught here.
-		        	listener.getLogger().println("[A3 Builder Info:] File Permission Problem. Temporary version file could not be deleted again.");
-		        }
-		        */
-	        
-	        if (!checkOK) {
-	        	listener.getLogger().println("[A3 Builder Error:] This version of the " + PLUGIN_NAME + " requires an a³ for " + target + " " + XMLResultFileHandler.required_a3version + " " + XMLResultFileHandler.required_a3build + " or newer!\n" +
-	        								 "                    Please contact support@absint.com to request an updated a³ for " + target + " version.");
+		             
+	        // The actual compatibility check:
+	        if (extractedBuild < extractBuildNumber(XMLResultFileHandler.required_a3build)) {
+	        	listener.getLogger().println("[A3 Builder Error:] This version of the " + PLUGIN_NAME + " requires an a³ for " + target + " " + XMLResultFileHandler.required_a3version + " " + XMLResultFileHandler.required_a3build + " or newer!\n" 
+	        								 + "Your version of a³ for " + target + " is: " + extractedBuild + "\n"
+	        								 + "Please contact support@absint.com to request an updated a³ for " + target + " version.");
 	        	listener.getLogger().println("\na³ Compatibility check failed.");
 	         	build.setResult(hudson.model.Result.FAILURE);
 	         	return;        	 
+	        } else {
+	        	listener.getLogger().println("[A3 Builder Note:] Compatibility Check OK, using an a³ for " + target + " Build: " + extractedBuild);
 	        }
 
 	        
@@ -494,16 +488,19 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 			
 			int exitCode = -1;
 			String cmd = builda3CmdLine(reportfileParam, resultfileParam, apxWorkspacePath_str);
-            listener.getLogger().println("[A3 Builder Note:] DEBUG cmd line: " + cmd);
-
+            //listener.getLogger().println("[A3 Builder Note:] DEBUG cmd line: " + cmd);
             
-			long time_before_launch = System.currentTimeMillis() / 1000 * 1000;
-        	
-        	Proc proc = launcher.launch(cmd, // command line call to a3
-        								env,
-                                        listener.getLogger(),
-                                        workspace );
-            exitCode = proc.join();          // wait for a3 to finish
+            // Prepare start of the analysis process
+            ProcStarter procstarter = launcher.new ProcStarter();
+	            procstarter.cmdAsSingleString(cmd);
+	            procstarter.envs(env);
+	            procstarter.stdout(listener.getLogger());
+	            procstarter.pwd(workspace);
+			
+	        FilePath timebase = absint_a3_dir.createTempFile("time", null);
+
+	        Proc proc = launcher.launch(procstarter);
+			exitCode = proc.join();          // wait for a3 to finish
 
 			/*  ************************************************************************************
         	 *  Postprocessing:
@@ -542,7 +539,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             Vector<String> failedItems = new Vector<String>();
             
             // Check if the XML Result File has been written by the analysis at all
-            if (xml.getXMLResultFile().lastModified() >= time_before_launch) {
+            if (xml.getXMLResultFile().lastModified() >= timebase.lastModified()) { //time_before_launch) {
             	// If yes: evaluate its results
             	xmlfailed = xml.prettyPrintResultsAndCollectFailedItems(failedItems, id2htmlreportMap);
             } else {
@@ -554,6 +551,9 @@ public class A3Builder extends Builder implements SimpleBuildStep {
                		listener.getLogger().println(cmd + "\n");
             	}
             }            
+            
+            // delete the timebase temp file again
+            timebase.delete();
             
         	// Check Exit Code and determine if Build was failed or successful
             if(exitCode == 0 && !xmlfailed) {
@@ -627,11 +627,10 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	}
     
     /* Small Helper:
-     * Parses the version-file output from alauncher, extracts the current a3 build number and compares it with the required build.
-     * Returns true  - if the alauncher would call a build >= the required build
-     * Returns false - otherwise
+     * Parses the version-file output from alauncher, extracts the current a3 build number and returns it.
+     * Returns the extracted build number, 0 otherwise
      */
-	private boolean checkA3Compatibility(String required_a3build, FilePath a3versionFileInfo) {
+	private long extractBuildNrFromVersionFile(FilePath a3versionFileInfo) {
 		try {
             BufferedReader br = new BufferedReader(
                     				new InputStreamReader(
@@ -640,15 +639,15 @@ public class A3Builder extends Builder implements SimpleBuildStep {
             for (String line = br.readLine(); line != null; line = br.readLine()) {
             	if (lineContainsBuildNumber(line)) {  // line with build looks like this: "This is a3 build 123456" (older alauncher versions)  or  "Build: 123456" (newer alauncher versions)
             		br.close();
-            		return (extractBuildNumber(line) >= extractBuildNumber(required_a3build));
+            		return extractBuildNumber(line);
             	}
             }
 			br.close();
 
-			return false;
+			return 0;
 						
 		} catch (IOException | InterruptedException e) {
-			return false;
+			return 0;
 		}
 	}
 
