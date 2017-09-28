@@ -704,8 +704,9 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	 try {
     		 // Input File
 	    	 BufferedReader br = new BufferedReader(
-	    			 				new InputStreamReader(
-	    			 						src.read()
+	    			 				new InputStreamReader(				
+	    			 						src.read(),
+	    			 						"UTF-8"
 	    			 						)
 	    			 				);
 	    			 				//new FileInputStream(src), "UTF-8"));
@@ -713,7 +714,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	    	 // Output File
 	    	 BufferedWriter bw = new BufferedWriter(
 	    			 				new OutputStreamWriter(
-	    			 						destfile.write()
+	    			 						destfile.write(),
+	    			 						"UTF-8"
 	    			 						)
 	    			 				);
 	    			 				//new FileOutputStream(destfile.getAbsoluteFile()), "UTF-8"));

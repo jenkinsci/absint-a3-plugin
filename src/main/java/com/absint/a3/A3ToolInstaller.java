@@ -9,7 +9,7 @@ import java.util.List;
 
 public class A3ToolInstaller {
 
-	private TaskListener listener;
+	//private TaskListener listener;
 	
 	private FilePath packagepath;
 	private FilePath workspace;
@@ -32,10 +32,11 @@ public class A3ToolInstaller {
 	 * @param packagepath_str java.lang.String path to the installerpackages
 	 * @param target java.lang.String Analysis target (e.g. ppc, tricore, arm, etc.)
 	 * @param nodeOS UNIX or WINDOWS
+	 * @param listener TaskListener for Error/Warning Message output
 	 */
 	public A3ToolInstaller (FilePath ws, String packagepath_str, String target, OS nodeOS, TaskListener listener) {
 		
-		this.listener = listener;
+		//this.listener = listener;
 		this.workspace = ws;
 		this.nodeOS = nodeOS;
 		this.target = target;
@@ -77,7 +78,7 @@ public class A3ToolInstaller {
 				throw new IOException();
 			}			
 			
-			listener.getLogger().print("[A3 Builder Note:] Scanning for a³ installation packages in " + packagepath + " ...");
+			listener.getLogger().print("[A3 ToolInstaller Note:] Scanning for a³ installation packages in " + packagepath + " ...");
 			
 			for (FilePath fp : files) {
 				if (fp.isDirectory()) continue; // if the file is a directory skip it
@@ -105,7 +106,7 @@ public class A3ToolInstaller {
 			
 			/* Now unpack the installer to workspace */
 			if (this.selected_installer != null) {				
-				listener.getLogger().print("[A3 Builder Note:] Installer package '" + selected_installer.getName() + "' has been selected and will be unpacked to JS workspace ...");
+				listener.getLogger().print("[A3 ToolInstaller Note:] Installer package '" + selected_installer.getName() + "' has been selected and will be unpacked to JS workspace ...");
 				
 				String dest_bin = "";
 				switch (nodeOS) {
@@ -120,10 +121,10 @@ public class A3ToolInstaller {
 				listener.getLogger().println("done");
 				
 				this.toolpath = new FilePath(this.workspace, dest_bin);
-				listener.getLogger().println("[A3 Builder Note:] Setting tool path to: " + toolpath);
+				listener.getLogger().println("[A3 ToolInstaller Note:] Setting tool path to: " + toolpath);
 				
 			} else {
-				listener.getLogger().println("[A3 Builder Info:] No a³ installer package for OS: " + expected_os + " and Target: " + target + " found! Try to locate installed \"alauncher[.exe]\"."); 
+				listener.getLogger().println("[A3 ToolInstaller Info:] No a³ installer package for OS: " + expected_os + " and Target: " + target + " found! Try to locate installed \"alauncher[.exe]\"."); 
 			}
 			
 		} catch (IOException | InterruptedException e) {
@@ -137,9 +138,10 @@ public class A3ToolInstaller {
 	 * @param ws FilePath to Jenkins workspace
 	 * @param launcherpath java.lang.String path to the alauncher
 	 * @param nodeOS UNIX or WINDOWS
+	 * @param listener TaskListener for Error/Warning Message output
 	 */		
 	public A3ToolInstaller(FilePath ws, String launcherpath, OS nodeOS, TaskListener listener) {
-		this.listener = listener;
+		//this.listener = listener;
 		this.workspace = ws;
 		this.nodeOS = nodeOS;
 		this.target = null; // not used in that mode
@@ -157,6 +159,7 @@ public class A3ToolInstaller {
 				// If the toolpath references a file, there must be a Parentdir, ignore the filename and take the one for the current OS
 				toolpath = new FilePath(toolpath.getParent(), alauncherbin);				
 			}
+			listener.getLogger().println("[A3 ToolInstaller Note:] Setting tool path to: " + toolpath);
 		} catch (IOException | InterruptedException e) {
 			// Do nothing, toolpath variable will have an instance in any case
 		}
@@ -172,4 +175,12 @@ public class A3ToolInstaller {
 		return this.build;
 	}
 
+	public String getTarget() {
+		return this.target;
+	}
+	
+	public OS getNodeOS() {
+		return this.nodeOS;		
+	}
+	
 }
