@@ -45,6 +45,20 @@
       </select>
   </f:entry>
 
+  <f:entry title="Analysis Concurrency" name="concurrency" field="concurrency">
+    <select name="concurrency">
+        <f:option value="default" selected="${instance.getConcurrency() == 'default'}">Default</f:option>
+        <f:option value="1" selected="${instance.getConcurrency() == '1'}">1</f:option>
+        <f:option value="2" selected="${instance.getConcurrency() == '2'}">2</f:option>
+        <f:option value="3" selected="${instance.getConcurrency() == '3'}">3</f:option>
+        <f:option value="4" selected="${instance.getConcurrency() == '4'}">4</f:option>
+        <f:option value="5" selected="${instance.getConcurrency() == '5'}">5</f:option>
+        <f:option value="6" selected="${instance.getConcurrency() == '6'}">6</f:option>
+        <f:option value="7" selected="${instance.getConcurrency() == '7'}">7</f:option>
+        <f:option value="8" selected="${instance.getConcurrency() == '8'}">8</f:option>
+      </select>
+  </f:entry>
+
   <f:entry title="Copy report file to Jenkins workspace" field="copy_report_file">
     <f:checkbox/>
   </f:entry>

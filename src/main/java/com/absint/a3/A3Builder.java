@@ -40,7 +40,6 @@ import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
-import com.absint.a3.A3ToolInstaller.OS;
 import org.kohsuke.stapler.QueryParameter;
 import javax.servlet.ServletException;
 import java.io.*;
@@ -53,10 +52,10 @@ import java.util.regex.Pattern;
  */
 public class A3Builder extends Builder implements SimpleBuildStep {
     private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
-    private static final String BUILD_NR    = "1.1.0";
+    private static final String BUILD_NR    = "1.1.1";
 
     //private String project_file, analysis_ids, pedantic_level, a3toolmode, export_a3apxworkspace;
-    private String project_file, analysis_ids, pedantic_level, export_a3apxworkspace;
+    private String project_file, analysis_ids, pedantic_level, export_a3apxworkspace, concurrency;
     private boolean copy_report_file, copy_result_file, skip_a3_analysis;
     
     private String toolpath;
@@ -64,13 +63,14 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public A3Builder(String project_file, String analysis_ids, String pedantic_level, String export_a3apxworkspace, boolean copy_report_file, boolean copy_result_file, boolean skip_a3_analysis)
+    public A3Builder(String project_file, String analysis_ids, String pedantic_level, String export_a3apxworkspace, String concurrency, boolean copy_report_file, boolean copy_result_file, boolean skip_a3_analysis)
     {
         this.project_file   		= project_file;
         this.analysis_ids    		= analysis_ids;
         this.pedantic_level 		= pedantic_level;
   //      this.a3toolmode            	= a3toolmode;
         this.export_a3apxworkspace 	= export_a3apxworkspace;
+        this.concurrency 			= concurrency;
         this.copy_report_file = copy_report_file;
         this.copy_result_file = copy_result_file;
         this.skip_a3_analysis = skip_a3_analysis;
@@ -124,6 +124,15 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      */
     public String getExport_a3apxworkspace() {
         return export_a3apxworkspace;
+    }
+
+    /**
+     * Returns the currently set pedantic level used for the analysis run.
+     *
+     * @return java.lang.String
+     */
+    public String getConcurrency() {
+		return concurrency;
     }
 
 
@@ -184,7 +193,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     	String batch_param = "-b";
     	String pedanticLevel = (!this.pedantic_level.equals("apx") ? "--pedantic-level " + this.pedantic_level : "");
     	String apxWorkspacePath_param = (!apxWorkspacePath.equals("") ? "--export-workspace " + apxWorkspacePath : "");
-    	StringBuffer cmd_buf = new StringBuffer(this.toolpath + " " + this.project_file_expanded + " " + batch_param + " " + reportFile + " " + resultFile + " " + pedanticLevel + " " + apxWorkspacePath_param + " ");
+    	String concurrency_param = (!this.concurrency.equals("default") ? "-j " + this.concurrency: "");
+    	StringBuffer cmd_buf = new StringBuffer(this.toolpath + " " + this.project_file_expanded + " " + batch_param + " " + reportFile + " " + resultFile + " " + pedanticLevel + " " + apxWorkspacePath_param + " " + concurrency_param + " ");
     	
     	// The Formvalidator guarantees a correct naming of the IDs
     	String[] analyses = analysis_ids.split(",");
@@ -258,7 +268,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            cmdln = subexpr.matcher(cmdln).replaceAll(envValue);
         } 
         
-        if(nodeOS == OS.UNIX) {
+        if(nodeOS == A3ToolInstaller.OS.UNIX) {
             return cmdln.replace('\\','/');
         } else {
             return cmdln.replace('/','\\');
@@ -272,8 +282,8 @@ public class A3Builder extends Builder implements SimpleBuildStep {
       * @param nodeOS	UNIX or WINDOWS
       * @return the quoted String in case nodeOS != UNIX
       */
-     private String quoteIt(String s, OS nodeOS) {
-    	 return (nodeOS == OS.UNIX ? "" : "\"") + s + (nodeOS == OS.UNIX ? "" : "\"");
+     private String quoteIt(String s, A3ToolInstaller.OS nodeOS) {
+    	 return (nodeOS == A3ToolInstaller.OS.UNIX ? "" : "\"") + s + (nodeOS == A3ToolInstaller.OS.UNIX ? "" : "\"");
      }
      
     
@@ -281,7 +291,6 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     public void perform(Run<?,?> build, FilePath workspace, Launcher launcher, TaskListener listener) {
     	// Analysis run started. ID plugin in Jenkins output.
         listener.getLogger().println("\nThis is " + PLUGIN_NAME + " in version " + BUILD_NR);
-
         // Perform some preliminary checks
         if(this.skip_a3_analysis) {
         	listener.getLogger().println("[A3 Builder Note:] a³ analysis run has been (temporarily) deactivated. Skipping analysis run.\n");
@@ -295,7 +304,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	 *  ********************************
         	 */
             
-        	A3ToolInstaller.OS nodeOS = (launcher.isUnix() ? OS.UNIX : OS.WINDOWS);
+        	A3ToolInstaller.OS nodeOS = (launcher.isUnix() ? A3ToolInstaller.OS.UNIX : A3ToolInstaller.OS.WINDOWS);
             // The actual environment is in local variable "env"
             Map<String,String> env = build.getEnvironment(listener);
         	
@@ -325,7 +334,6 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	 *   APX Project File Handling
         	 *  **********************************
         	 */
-        	
         	project_file_expanded = expandEnvironmentVarsHelper(project_file, env, nodeOS);   				// String expanded_project_file !
         	FilePath fpproject_file = new FilePath(workspace.getChannel(), project_file_expanded);
         	project_file_expanded = quoteIt(fpproject_file.toString(), nodeOS);
@@ -406,7 +414,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 		            procstarter.envs(env);
 		            procstarter.stdout(listener.getLogger());
 		            procstarter.pwd(workspace);
-				
+		            
 		        Proc check = launcher.launch(procstarter);
 		        check.join();          // wait for alauncher to finish
 		        
@@ -1000,7 +1008,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
      	 * @return java.lang.String
      	 */
          public String getAlmport() {
-             if (this.almport.equals("")) this.almport = DescriptorImpl.default_almport;
+             if (this.almport == null || this.almport.trim().equals("")) this.almport = DescriptorImpl.default_almport;
         	 return this.almport;
          }
      }
