@@ -58,8 +58,8 @@ public class XMLResultFileHandler {
 	private	FilePath inputXMLFile;
 	private int build;
 	
-	public static final String required_a3build   = "Build: 268982";
-	public static final String required_a3version = "Version: 16.04i";
+	public static final String required_a3build   = "Build: 3377568";
+	public static final String required_a3version = "Version: 18.04i";
 	
 	/**
 	 * Constructor
@@ -176,6 +176,7 @@ public class XMLResultFileHandler {
 						switch(analysisType) {
 							case "TP":
 							case "aiT": 
+							case "TW":
 								String cycles = ((Element) node.getElementsByTagName("cycles").item(0)).getTextContent(); // There must be a cycles sub-node
 								String tunit = ((Element) node.getElementsByTagName("unit").item(0)).getTextContent(); // There must be a unit sub-node
 								String time = ((Element) node.getElementsByTagName("time").item(0)).getTextContent(); // There must be a time sub-node
@@ -280,6 +281,7 @@ public class XMLResultFileHandler {
 		switch (type) {
 			case "aiT": analysisType = "aiT"; break;
 			case "TimingProfiler": analysisType = "TP"; break;
+			case "TimeWeaver": analysisType = "TW"; break;
 			case "StackAnalyzer": analysisType = "Stack"; break;
 			case "ValueAnalyzer": analysisType = "Value"; break;
 			case "ResultCombinator": analysisType = "RComb"; break;

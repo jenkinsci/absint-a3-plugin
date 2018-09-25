@@ -421,6 +421,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 		        extractedBuild = extractBuildNrFromVersionFile(a3versionFileInfo); 
 	        } else {
 	        	// the easy way, take it from the installer package file name :)
+	        	listener.getLogger().println("[A3 Builder Note:] Extract a³ version info from installer package name");
 	        	extractedBuild = a3installer.getBuildNr();        	
 	        }		        
 		             

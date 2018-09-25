@@ -45,7 +45,7 @@ public class A3ToolInstaller {
 		switch (nodeOS) {
 			case UNIX:
 				expected_os = "linux64";
-				expected_suffix = ".tgz";
+				expected_suffix = ".zip";
 				break;
 			case WINDOWS:
 				expected_os = "win64";
@@ -110,17 +110,20 @@ public class A3ToolInstaller {
 				
 				String dest_bin = "";
 				switch (nodeOS) {
-					case UNIX: 
-						selected_installer.untar(workspace, FilePath.TarCompression.GZIP);
-						dest_bin = "a3_" + target + "/bin/a3" + target;
+					case UNIX: 						
+						dest_bin = "a3_" + target + "_linux64_b" + build + "_release/bin/a3" + target;
 						break;
 					case WINDOWS:
-						selected_installer.unzip(workspace);
-						dest_bin = "install-tree-" + target + "-com/bin/a3" + target + ".exe";
-				}				
-				listener.getLogger().println("done");
+						dest_bin = "a3_" + target + "_win64_b" + build + "_release/bin/a3" + target + ".exe";
+				}
 				
+				// Prepare the target directory by cleaning it, if already present
 				this.toolpath = new FilePath(this.workspace, dest_bin);
+								
+				// Unzip it now
+				selected_installer.unzip(workspace); // Now both Win + Linux installers come with .zip files
+				
+				listener.getLogger().println("done");				
 				listener.getLogger().println("[A3 ToolInstaller Note:] Setting tool path to: " + toolpath);
 				
 			} else {
