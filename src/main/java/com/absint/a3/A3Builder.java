@@ -837,7 +837,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 
 /**
  * Helper method to check whether a string contains an environment variable of form
- * <br><tt>${IDENTIFIER}</tt><br>
+ * "$IDENTIFYER"
  *
  * @param   s    String to scan for environment variable expressions
  * @return  Outcome of the check as a boolean (true if such an expression
