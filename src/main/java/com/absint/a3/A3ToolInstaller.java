@@ -17,7 +17,7 @@ public class A3ToolInstaller {
 	private OS nodeOS;
 	
 	public static enum OS { 
-    	WINDOWS, UNIX
+    	WINDOWS, UNIX, MACOS
     }
 	
 	/* These members are accessible through public getter */
@@ -31,7 +31,7 @@ public class A3ToolInstaller {
 	 * @param ws FilePath to Jenkins workspace
 	 * @param packagepath_str java.lang.String path to the installerpackages
 	 * @param target java.lang.String Analysis target (e.g. ppc, tricore, arm, etc.)
-	 * @param nodeOS UNIX or WINDOWS
+	 * @param nodeOS UNIX or WINDOWS or MACOS
 	 * @param listener TaskListener for Error/Warning Message output
 	 */
 	public A3ToolInstaller (FilePath ws, String packagepath_str, String target, OS nodeOS, TaskListener listener) {
@@ -49,6 +49,10 @@ public class A3ToolInstaller {
 				break;
 			case WINDOWS:
 				expected_os = "win64";
+				expected_suffix = ".zip";
+				break;
+			case MACOS:
+				expected_os = "macos64";
 				expected_suffix = ".zip";
 				break;
 		}		
@@ -78,7 +82,7 @@ public class A3ToolInstaller {
 				throw new IOException();
 			}			
 			
-			listener.getLogger().print("[A3 ToolInstaller Note:] Scanning for a³ installation packages in " + packagepath + " ...");
+			listener.getLogger().print("[A3 ToolInstaller Note:] Scanning for a³ " + target + " installation packages in " + packagepath + " ...");
 			
 			for (FilePath fp : files) {
 				if (fp.isDirectory()) continue; // if the file is a directory skip it
@@ -87,7 +91,7 @@ public class A3ToolInstaller {
 				if (file_str.startsWith("a3_" + target + "_")) {
 					String[] strxs = file_str.split("_");  // leads to: strx = [a3, arm, win64, b277911, release.exe]
 					// consistence checks
-					if (strxs.length == 5 &&
+					if (strxs.length >= 5 &&
 						strxs[2].equals(expected_os) &&
 						strxs[4].endsWith(expected_suffix)){						
 							/* We found one good installer package candidate */
@@ -103,7 +107,7 @@ public class A3ToolInstaller {
 			}
 			
 			listener.getLogger().println("done");
-			
+
 			/* Now unpack the installer to workspace */
 			if (this.selected_installer != null) {				
 				listener.getLogger().print("[A3 ToolInstaller Note:] Installer package '" + selected_installer.getName() + "' has been selected and will be unpacked to JS workspace ...");
@@ -115,13 +119,16 @@ public class A3ToolInstaller {
 						break;
 					case WINDOWS:
 						dest_bin = "a3_" + target + "_win64_b" + build + "_release/bin/a3" + target + ".exe";
+					case MACOS:
+						/* a3_arm_macos64_b11610530_release.app/Contents/MacOS */
+						dest_bin = "a3_" + target + "_macos64_b" + build + "_release.app/Contents/MacOS/a3" + target;
 				}
 				
 				// Prepare the target directory by cleaning it, if already present
 				this.toolpath = new FilePath(this.workspace, dest_bin);
 								
 				// Unzip it now
-				selected_installer.unzip(workspace); // Now both Win + Linux installers come with .zip files
+				selected_installer.unzip(workspace); // Now all Win/Linux/Mac installers come with .zip files
 				
 				listener.getLogger().println("done");				
 				listener.getLogger().println("[A3 ToolInstaller Note:] Setting tool path to: " + toolpath);
@@ -140,10 +147,11 @@ public class A3ToolInstaller {
 	 * Constructor (The easy one - we use the preinstalled alauncher, finding the correct analyzer tool automatically)
 	 * @param ws FilePath to Jenkins workspace
 	 * @param launcherpath java.lang.String path to the alauncher
-	 * @param nodeOS UNIX or WINDOWS
+	 * @param nodeOS UNIX or WINDOWS, MACOS does not support centrally installed alauncher
 	 * @param listener TaskListener for Error/Warning Message output
 	 */		
 	public A3ToolInstaller(FilePath ws, String launcherpath, OS nodeOS, TaskListener listener) {
+
 		//this.listener = listener;
 		this.workspace = ws;
 		this.nodeOS = nodeOS;
@@ -153,6 +161,10 @@ public class A3ToolInstaller {
 																			// even if the launcherpath does not exist or equals("") => 
 																			// This case will be catched in the A3Builder:Run
 		try {
+			if (nodeOS == OS.MACOS) {
+				listener.getLogger().println("[A3 ToolInstaller Error:] a³ installation mode not supported on MacOS. Use the portable archive mode instead. " + this.packagepath);
+				throw new IOException();
+			}		
 			String alauncherbin = "alauncher" + (nodeOS == OS.WINDOWS ? ".exe" : "");
 			if (toolpath.isDirectory()) {
 				// new standard mode: User has entered just the path to the alauncher binary

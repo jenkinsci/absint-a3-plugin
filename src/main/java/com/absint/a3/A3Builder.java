@@ -38,8 +38,13 @@ import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
+
+import org.apache.commons.fileupload.DefaultFileItem;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
+
+import com.absint.a3.A3ToolInstaller.OS;
+
 import org.kohsuke.stapler.QueryParameter;
 import javax.servlet.ServletException;
 import java.io.*;
@@ -52,7 +57,7 @@ import java.util.regex.Pattern;
  */
 public class A3Builder extends Builder implements SimpleBuildStep {
     private static final String PLUGIN_NAME = "AbsInt a³ Jenkins PlugIn";
-    private static final String BUILD_NR    = "1.1.1";
+    private static final String BUILD_NR    = "1.2.0";
 
     //private String project_file, analysis_ids, pedantic_level, a3toolmode, export_a3apxworkspace;
     private String project_file, analysis_ids, pedantic_level, export_a3apxworkspace, concurrency;
@@ -268,7 +273,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
            cmdln = subexpr.matcher(cmdln).replaceAll(envValue);
         } 
         
-        if(nodeOS == A3ToolInstaller.OS.UNIX) {
+        if(nodeOS == A3ToolInstaller.OS.UNIX || nodeOS == A3ToolInstaller.OS.MACOS) {
             return cmdln.replace('\\','/');
         } else {
             return cmdln.replace('/','\\');
@@ -283,7 +288,18 @@ public class A3Builder extends Builder implements SimpleBuildStep {
       * @return the quoted String in case nodeOS != UNIX
       */
      private String quoteIt(String s, A3ToolInstaller.OS nodeOS) {
-    	 return (nodeOS == A3ToolInstaller.OS.UNIX ? "" : "\"") + s + (nodeOS == A3ToolInstaller.OS.UNIX ? "" : "\"");
+         String ret;
+         switch (nodeOS) {
+            case WINDOWS:    
+                ret = "\"" + s + "\"";
+                break;
+            case UNIX:
+            case MACOS:
+            default:
+                ret = s;
+                break;            
+         }
+    	 return ret;
      }
      
     
@@ -304,7 +320,16 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	 *  ********************************
         	 */
             
-        	A3ToolInstaller.OS nodeOS = (launcher.isUnix() ? A3ToolInstaller.OS.UNIX : A3ToolInstaller.OS.WINDOWS);
+            A3ToolInstaller.OS nodeOS = null;
+            String osname = System.getProperty("os.name");
+            if (osname.startsWith("Windows"))
+                   nodeOS = OS.WINDOWS;
+            else if (osname.startsWith("Mac"))
+                   nodeOS = OS.MACOS;
+            else 
+                   nodeOS = OS.UNIX;
+
+        	//A3ToolInstaller.OS nodeOS = (launcher.isUnix() ? A3ToolInstaller.OS.UNIX : A3ToolInstaller.OS.WINDOWS);
             // The actual environment is in local variable "env"
             Map<String,String> env = build.getEnvironment(listener);
         	
@@ -351,7 +376,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	        
 			// Extract Target Architecture from APX file
 			String target = apx.getTarget();
-
+            listener.getLogger().println("[A3 Builder Note:] Extracted a³ project target: " + target);
 			
 			/*  *************************************
         	 *  Now determine the tool execution mode

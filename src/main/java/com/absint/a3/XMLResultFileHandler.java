@@ -128,7 +128,7 @@ public class XMLResultFileHandler {
 			/* Iterate through each Result-Element */
 			for (int i=0; i<resultsList.getLength(); i++) {
 
-				String expectation   = "";
+				String expectation   = "ok"; // per default
 				String result 		 = "";
 				StringBuffer result_buf;
 				
@@ -146,8 +146,8 @@ public class XMLResultFileHandler {
 					throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible with a³ versions prior to " + required_a3version + " " + required_a3build + "!\nRequest support@absint.com for latest a³ Version.\n");
 				}
 				
-				boolean failed       = (!failed_str.equals("success"));
-				failed_str    = "";
+				boolean failed  = (!failed_str.equals("success"));
+				failed_str = "";
 				
 				if (!failed) {
 					try {							
@@ -163,14 +163,14 @@ public class XMLResultFileHandler {
 								expectation = "FAILED (" + expectedResult.getTextContent() + ")";
 								failed_str = "><";  // failed expectation overwrites analysis_status == success!
 								failed_items.add(currentID);
-							} else {
-								expectation = "ok";
 							}
-						} else {
+						}							
+						/*else {
 							failed_items.add(currentID);
 							throw new XMLResultFileException("[XML Result Structure Error:] This a³ Jenkins Plugin is incompatible (no 'expectation' tag found) with a³ versions prior to " + required_a3version + " " + required_a3build + "!\n"+
 									 						 "                              Write to support@absint.com to request the latest a³ version.");
 							}
+							*/
 				
 						// Depending on the Analysis Type read out different information:
 						switch(analysisType) {
@@ -224,8 +224,10 @@ public class XMLResultFileHandler {
 								result = result_buf.toString();
 								break;
 							case "Value":
+							case "CFG":
+							case "TraVi":
 								break;
-								// ValueAnalyzer does not have further information, i.e. result stays "" and expectation gives the information.
+								// ValueAnalyzer/ControlFlow and Trace Visualizer do not have further information, i.e. result stays "" and expectation gives the information.
 							default:
 								failed_items.add(currentID);
 								throw new XMLResultFileException("[XML Result Structure Error:] Analysis Type " + analysisType + " is not supported with this version of Jenkins plugin.\n"+
@@ -285,6 +287,8 @@ public class XMLResultFileHandler {
 			case "StackAnalyzer": analysisType = "Stack"; break;
 			case "ValueAnalyzer": analysisType = "Value"; break;
 			case "ResultCombinator": analysisType = "RComb"; break;
+			case "Control-Flow Visualizer": analysisType = "CFG"; break;
+			case "TraceVisualizer": analysisType = "TraVi"; break;
 			default: analysisType = type;		
 		}
 		return analysisType;
