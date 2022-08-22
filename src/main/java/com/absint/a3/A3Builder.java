@@ -233,11 +233,11 @@ public class A3Builder extends Builder implements SimpleBuildStep {
     
 	/**
      * Builds the command line for invocation of a3 interactively opening an a3 workspace
-     * @param apxWorkspacePath_str - Workspace Path String 
+     * @param apzWorkspacePath_str - Workspace Path String 
      * @return String CommandLine String
      */
-    private String builda3CmdLineWorkspace(String apxWorkspacePath_str) {
-    	String cmd = this.toolpath + " " + apxWorkspacePath_str;
+    private String builda3CmdLineWorkspace(String apzWorkspacePath_str) {
+    	String cmd = this.toolpath + " " + apzWorkspacePath_str;
 		return cmd;
 	}
     
@@ -495,20 +495,20 @@ public class A3Builder extends Builder implements SimpleBuildStep {
 	
 			
 			/* Determine the directory where to store a3 apx workspace, if any shall be exported */
-			String apxWorkspacePath_str = (apx.getAPXFile().getBaseName()) + "-workspace-jb" + build.getNumber() + ".apx";
+			String apzWorkspacePath_str = (apx.getAPXFile().getBaseName()) + "-workspace-jb" + build.getNumber() + ".apz";
 			switch(this.export_a3apxworkspace) {
 				case ("apx_dir"): 
-					apxWorkspacePath_str = quoteIt(new FilePath(apx.getAPXFile().getParent(), apxWorkspacePath_str).toString(), nodeOS);
+					apzWorkspacePath_str = quoteIt(new FilePath(apx.getAPXFile().getParent(), apzWorkspacePath_str).toString(), nodeOS);
 					break;
 				case ("jenkins_workspace"):
-					apxWorkspacePath_str = quoteIt(new FilePath(absint_a3_dir, apxWorkspacePath_str).toString(), nodeOS);
+					apzWorkspacePath_str = quoteIt(new FilePath(absint_a3_dir, apzWorkspacePath_str).toString(), nodeOS);
 					break;
 				default: // disabled case
-					apxWorkspacePath_str = ""; 
+					apzWorkspacePath_str = ""; 
 			}
 			
 			if (!this.export_a3apxworkspace.equals("disabled")) {
-				listener.getLogger().println("                   a³ Workspace File   : " + apxWorkspacePath_str);
+				listener.getLogger().println("                   a³ Workspace File   : " + apzWorkspacePath_str);
 			}
 
 			/* Prepare the <Analysis ID, HTML Report File> Map */
@@ -521,7 +521,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	 */
 			
 			int exitCode = -1;
-			String cmd = builda3CmdLine(reportfileParam, resultfileParam, apxWorkspacePath_str);
+			String cmd = builda3CmdLine(reportfileParam, resultfileParam, apzWorkspacePath_str);
             //listener.getLogger().println("[A3 Builder Note:] DEBUG cmd line: " + cmd);
             
             // Prepare start of the analysis process
@@ -613,7 +613,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
           		
            		if (!this.export_a3apxworkspace.equals("disabled")) {
            			// Then we have a workspace file
-           			cmd = builda3CmdLineWorkspace(apxWorkspacePath_str);           			
+           			cmd = builda3CmdLineWorkspace(apzWorkspacePath_str);           			
            		} else {
            			cmd = builda3CmdLineInteractive(failedItems);
            		}
