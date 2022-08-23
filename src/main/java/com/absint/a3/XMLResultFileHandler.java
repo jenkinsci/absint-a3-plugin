@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright (c) 2016, AbsInt Angewandte Informatik GmbH
+ * Copyright (c) 2022, AbsInt Angewandte Informatik GmbH
  * Author: Christian Huembert
  * Email: huembert@absint.com
  *
@@ -58,8 +58,8 @@ public class XMLResultFileHandler {
 	private	FilePath inputXMLFile;
 	private int build;
 	
-	public static final String required_a3build   = "Build: 3377568";
-	public static final String required_a3version = "Version: 18.04i";
+	public static final String required_a3build   = "Build: 7686572";
+	public static final String required_a3version = "Version: 20.10";
 	
 	/**
 	 * Constructor

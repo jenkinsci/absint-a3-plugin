@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright (c) 2016, AbsInt Angewandte Informatik GmbH
+ * Copyright (c) 2022, AbsInt Angewandte Informatik GmbH
  * Author: Christian Huembert
  * Email: huembert@absint.com
  *
@@ -320,19 +320,22 @@ public class A3Builder extends Builder implements SimpleBuildStep {
         	 *  ********************************
         	 */
             
+            // The actual environment is in local variable "env"
+            Map<String,String> env = build.getEnvironment(listener);
+
+            /* The plugin currently can distinguish node architectures Unix or not Unix. 
+               This is insufficient for macOS nodes. 
+               => Important Convention: macOS Nodes must have a NODE_LABEL defined containing the string "macos" !
+            */
+
             A3ToolInstaller.OS nodeOS = null;
-            String osname = System.getProperty("os.name");
-            if (osname.startsWith("Windows"))
+            if (!launcher.isUnix())
                    nodeOS = OS.WINDOWS;
-            else if (osname.startsWith("Mac"))
+            else if (env.get("NODE_LABELS").toLowerCase().contains("macos"))
                    nodeOS = OS.MACOS;
             else 
                    nodeOS = OS.UNIX;
-
-        	//A3ToolInstaller.OS nodeOS = (launcher.isUnix() ? A3ToolInstaller.OS.UNIX : A3ToolInstaller.OS.WINDOWS);
-            // The actual environment is in local variable "env"
-            Map<String,String> env = build.getEnvironment(listener);
-        	
+  	
         	String almserver = getDescriptor().getAlmserver();
         	String almport   = getDescriptor().getAlmport();
         	

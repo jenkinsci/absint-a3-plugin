@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright (c) 2016, AbsInt Angewandte Informatik GmbH
+ * Copyright (c) 2022, AbsInt Angewandte Informatik GmbH
  * Author: Christian Huembert
  * Email: huembert@absint.com
  *
