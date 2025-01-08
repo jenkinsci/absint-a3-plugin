@@ -1,0 +1,75 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+  <!--
+    This jelly script is used for per-project configuration.
+
+    See global.jelly for a general discussion about jelly script.
+  -->
+
+
+  <f:section title="Basic Settings">
+
+  <f:entry title="Project File (APX)" field="project_file">
+    <f:textbox />
+  </f:entry>
+  <f:entry title="Analysis IDs" field="analysis_ids">
+    <f:textbox />
+  </f:entry>
+
+  <f:entry title="Let a³ fail a build according to failed expectations on XML result file OR according to ..." name="pedantic_level" field="pedantic_level">
+    <select name="pedantic_level">
+        <f:option value="apx" selected="${instance.getPedantic_level() == 'apx'}">pedantic level defined in project configuration</f:option>
+        <f:option value="warning" selected="${instance.getPedantic_level() == 'warning'}">errors and warnings (pedantic high)</f:option>
+        <f:option value="error" selected="${instance.getPedantic_level() == 'error'}">errors (pedantic middle)</f:option>
+        <f:option value="fatal" selected="${instance.getPedantic_level() == 'fatal'}">fatal errors (pedantic low)</f:option>
+     </select>
+  </f:entry>
+
+  </f:section>
+
+ <f:section title="Options">
+ <!-- Currently use fuzzy logic to determine a3 tool installation mode
+   <f:entry title="a³ tool execution mode" name="a3toolmode" field="a3toolmode">
+    <select name="a3toolmode">
+        <f:option value="installed" selected="${instance.getA3toolmode() == 'installed'}">Use installed a³</f:option>
+        <f:option value="tempcopy" selected="${instance.getA3toolmode() == 'tempcopy'}">Use temporary copy of a³ in WS</f:option>
+      </select>
+   </f:entry> 
+ -->
+ 
+  <f:entry title="Export a³ workspace (.apx) file " name="export_a3apxworkspace" field="export_a3apxworkspace">
+    <select name="export_a3apxworkspace">
+        <f:option value="disabled" selected="${instance.getExport_a3apxworkspace() == 'disabled'}">disabled</f:option>
+        <f:option value="jenkins_workspace" selected="${instance.getExport_a3apxworkspace() == 'jenkins_workspace'}">to Jenkins workspace</f:option>
+        <f:option value="apx_dir" selected="${instance.getExport_a3apxworkspace() == 'apx_dir'}">to a³ project directory</f:option>
+      </select>
+  </f:entry>
+
+  <f:entry title="Analysis Concurrency" name="concurrency" field="concurrency">
+    <select name="concurrency">
+        <f:option value="default" selected="${instance.getConcurrency() == 'default'}">Default</f:option>
+        <f:option value="1" selected="${instance.getConcurrency() == '1'}">1</f:option>
+        <f:option value="2" selected="${instance.getConcurrency() == '2'}">2</f:option>
+        <f:option value="3" selected="${instance.getConcurrency() == '3'}">3</f:option>
+        <f:option value="4" selected="${instance.getConcurrency() == '4'}">4</f:option>
+        <f:option value="5" selected="${instance.getConcurrency() == '5'}">5</f:option>
+        <f:option value="6" selected="${instance.getConcurrency() == '6'}">6</f:option>
+        <f:option value="7" selected="${instance.getConcurrency() == '7'}">7</f:option>
+        <f:option value="8" selected="${instance.getConcurrency() == '8'}">8</f:option>
+      </select>
+  </f:entry>
+
+  <f:entry title="Copy report file to Jenkins workspace" field="copy_report_file">
+    <f:checkbox/>
+  </f:entry>
+
+  <f:entry title="Copy XML result file to Jenkins workspace" field="copy_result_file">
+    <f:checkbox/>
+  </f:entry>
+ 
+  <f:entry title="Skip a³ analysis run" field="skip_a3_analysis">
+    <f:checkbox/>
+  </f:entry> 
+ </f:section>
+
+</j:jelly>

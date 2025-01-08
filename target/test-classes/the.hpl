@@ -1,0 +1,18 @@
+Manifest-Version: 1.0
+Group-Id: org.jenkins-ci.plugins
+Short-Name: absint-a3
+Long-Name: AbsInt a³ Jenkins Plugin
+Url: https://wiki.jenkins-ci.org/pages/viewpage.action?pageId=99910492
+Plugin-Version: 1.2.0-SNAPSHOT (private-c4e51d2f-poddingue)
+Hudson-Version: 2.332.4
+Jenkins-Version: 2.332.4
+Plugin-Developers: Technical Support:absint:support@absint.com
+Plugin-License-Name: MIT License
+Plugin-License-Url: http://opensource.org/licenses/MIT
+Plugin-ScmUrl: https://github.com/jenkinsci/absint-a3-plugin
+Libraries: /home/poddingue/.cache/jenkins-plugin-modernizer-cli/absint-a
+ 3/sources/src/main/resources,/home/poddingue/.cache/jenkins-plugin-mode
+ rnizer-cli/absint-a3/sources/target/classes
+Resource-Path: /home/poddingue/.cache/jenkins-plugin-modernizer-cli/absi
+ nt-a3/sources/src/main/webapp
+

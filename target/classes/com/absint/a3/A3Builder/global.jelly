@@ -1,0 +1,35 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+  <!--
+    This Jelly script is used to produce the global configuration option.
+
+    Jenkins uses a set of tag libraries to provide uniformity in forms.
+    To determine where this tag is defined, first check the namespace URI,
+    and then look under $JENKINS/views/. For example, <f:section> is defined
+    in $JENKINS/views/lib/form/section.jelly.
+
+    It's also often useful to just check other similar scripts to see what
+    tags they use. Views are always organized according to its owner class,
+    so it should be straightforward to find them.
+  -->
+  <f:section title="a³ Configuration">
+    <f:entry title="AbsInt Launcher Program" field="alauncher"
+      description="Specify the path to your local AbsInt Launcher (alauncher)">
+      <f:textbox />
+    </f:entry>
+    <f:entry title="Path to a³ installation packages" field="a3packages"
+      description="Specify the path where the a³ installation packages are located.">
+      <f:textbox />
+    </f:entry>
+  </f:section>
+  <f:section title="AbsInt License Manager Configuration">
+    <f:entry title="License Server" field="almserver"
+      description="Specify the host name where the AbsInt License Server (alm.exe) is running on">
+      <f:textbox />
+    </f:entry>
+    <f:entry title="License Server Port" field="almport"
+      description="Specify the port the AbsInt License Server is listening to (default is: 42424)">
+      <f:textbox value="${descriptor.getAlmport()}"/>
+    </f:entry>
+  </f:section>
+</j:jelly>
