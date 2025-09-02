@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.87</version>
+    <version>5.24</version>
     <relativePath />
   </parent>
 
@@ -15,9 +15,10 @@
 
   <properties>
     <changelist>1.2.0-SNAPSHOT</changelist>
+    <!-- https://www.jenkins.io/doc/developer/plugin-development/choosing-jenkins-baseline/ -->
+    <jenkins.baseline>2.492</jenkins.baseline>
     <!-- Baseline Jenkins version you use to build the plugin. Users must have this version or newer to run. -->
-    <jenkins.version>2.426.3</jenkins.version>  <!-- (2.516.2) seems to be the latest version, used to work with 2.332.4-->
-    <java.level>8</java.level>
+    <jenkins.version>${jenkins.baseline}.3</jenkins.version>
  <!--   <maven.test.skip>true</maven.test.skip>
         <spotbugs.skip>true</spotbugs.skip>      -->
    </properties>
@@ -25,6 +26,17 @@
   <name>AbsInt a³ Jenkins Plugin</name>
   <description>Integration of AbsInt's aiT, TimingProfiler, TimeWeaver and StackAnalyzer (a³) into the Jenkins continuous integration system</description>
   <url>https://github.com/jenkinsci/absint-a3-plugin</url>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.jenkins.tools.bom</groupId>
+        <artifactId>bom-${jenkins.baseline}.x</artifactId>
+        <version>5324.v88b_4300d0dd9</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <!-- The default licence for Jenkins OSS Plugins is MIT. Substitute for the applicable one if needed. -->
 
@@ -34,15 +46,6 @@
       <url>http://opensource.org/licenses/MIT</url>
     </license>
   </licenses>
-
-
-<developers>
-    <developer>
-      <id>chuemb</id>
-      <name>Christian Huembert</name>
-      <email>huembert@absint.com</email>
-    </developer>
-  </developers>
 
   <scm>
     <connection>scm:git:https://github.com/jenkinsci/absint-a3-plugin.git</connection>
@@ -56,25 +59,21 @@
 <dependency>
     <groupId>io.jenkins.plugins</groupId>
     <artifactId>warnings-ng</artifactId>
-    <version>11.3.0</version>
 </dependency>
     <!-- Override parent spotbugs-annotations dependency and use version as in warnings-ng -->
     <dependency>
       <groupId>com.github.spotbugs</groupId>
       <artifactId>spotbugs-annotations</artifactId>
-      <version>4.8.6</version>
     </dependency>
     
     <dependency>
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>structs</artifactId>
-        <version>338.v848422169819</version>
     </dependency>
     
     <dependency>
         <groupId>org.jenkins-ci.plugins.workflow</groupId>
         <artifactId>workflow-step-api</artifactId>
-        <version>657.v03b_e8115821b_</version>
     </dependency>
     
 <dependency>
@@ -92,13 +91,11 @@
 <dependency>
     <groupId>io.jenkins.plugins</groupId>
     <artifactId>caffeine-api</artifactId>
-    <version>3.1.8-133.v17b_1ff2e0599</version>
 </dependency>
 
 <dependency>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>scm-api</artifactId>
-    <version>683.vb_16722fb_b_80b_</version>
 </dependency>
 
 <dependency>
@@ -110,7 +107,6 @@
 <dependency>
     <groupId>org.slf4j</groupId>
     <artifactId>slf4j-api</artifactId>
-    <version>2.0.12</version>
 </dependency>
 
 <dependency>
@@ -122,7 +118,6 @@
 <dependency>
     <groupId>io.jenkins.plugins</groupId>
     <artifactId>commons-text-api</artifactId>
-    <version>1.11.0-95.v22a_d30ee5d36</version>
 </dependency>
     
 </dependencies>
