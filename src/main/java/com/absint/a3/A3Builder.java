@@ -40,12 +40,12 @@ import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 
 import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerRequest2;
 
 import com.absint.a3.A3ToolInstaller.OS;
 
 import org.kohsuke.stapler.QueryParameter;
-import javax.servlet.ServletException;
+import jakarta.servlet.ServletException;
 import java.io.*;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -991,7 +991,7 @@ public class A3Builder extends Builder implements SimpleBuildStep {
  * @throws FormException           as super class
  */
         @Override
-        public boolean configure(StaplerRequest req, JSONObject formData) throws FormException {
+        public boolean configure(StaplerRequest2 req, JSONObject formData) throws FormException {
             // To persist global configuration information,
             // set that to properties and call save().
             this.alauncher    = formData.getString("alauncher");
