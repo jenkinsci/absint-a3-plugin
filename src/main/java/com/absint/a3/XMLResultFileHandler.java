@@ -26,7 +26,6 @@
 
 package com.absint.a3;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
