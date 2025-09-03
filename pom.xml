@@ -1,131 +1,80 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.87</version>
+    <version>5.21</version>
     <relativePath />
   </parent>
 
   <artifactId>absint-a3</artifactId>
-  <version>${changelist}</version>
+  <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
 
-  <properties>
-    <changelist>1.2.0-SNAPSHOT</changelist>
-    <!-- Baseline Jenkins version you use to build the plugin. Users must have this version or newer to run. -->
-    <jenkins.version>2.426.3</jenkins.version>  <!-- (2.516.2) seems to be the latest version, used to work with 2.332.4-->
-    <java.level>8</java.level>
- <!--   <maven.test.skip>true</maven.test.skip>
-        <spotbugs.skip>true</spotbugs.skip>      -->
-   </properties>
-
-  <name>AbsInt a³ Jenkins Plugin</name>
-  <description>Integration of AbsInt's aiT, TimingProfiler, TimeWeaver and StackAnalyzer (a³) into the Jenkins continuous integration system</description>
-  <url>https://github.com/jenkinsci/absint-a3-plugin</url>
-
-  <!-- The default licence for Jenkins OSS Plugins is MIT. Substitute for the applicable one if needed. -->
-
+  <name>TODO Plugin</name>
+  <url>https://github.com/jenkinsci/${project.artifactId}-plugin</url>
   <licenses>
     <license>
       <name>MIT License</name>
-      <url>http://opensource.org/licenses/MIT</url>
+      <url>https://opensource.org/license/mit/</url>
     </license>
   </licenses>
-
-
-<developers>
-    <developer>
-      <id>chuemb</id>
-      <name>Christian Huembert</name>
-      <email>huembert@absint.com</email>
-    </developer>
-  </developers>
-
-  <scm>
-    <connection>scm:git:https://github.com/jenkinsci/absint-a3-plugin.git</connection>
-    <developerConnection>scm:git:https://github.com/jenkinsci/absint-a3-plugin.git</developerConnection>
-    <url>https://github.com/jenkinsci/absint-a3-plugin</url>
+  <scm child.scm.connection.inherit.append.path="false" child.scm.developerConnection.inherit.append.path="false" child.scm.url.inherit.append.path="false">
+    <connection>scm:git:https://github.com/${gitHubRepo}</connection>
+    <developerConnection>scm:git:https://github.com/${gitHubRepo}</developerConnection>
     <tag>${scmTag}</tag>
+    <url>https://github.com/${gitHubRepo}</url>
   </scm>
 
-<dependencies>
+  <properties>
+    <revision>1.0</revision>
+    <changelist>-SNAPSHOT</changelist>
 
-<dependency>
-    <groupId>io.jenkins.plugins</groupId>
-    <artifactId>warnings-ng</artifactId>
-    <version>11.3.0</version>
-</dependency>
-    <!-- Override parent spotbugs-annotations dependency and use version as in warnings-ng -->
+    <!-- https://www.jenkins.io/doc/developer/plugin-development/choosing-jenkins-baseline/ -->
+    <jenkins.baseline>2.504</jenkins.baseline>
+    <jenkins.version>${jenkins.baseline}.3</jenkins.version>
+    <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
+
+    <spotless.check.skip>false</spotless.check.skip>
+    <ban-junit4-imports.skip>false</ban-junit4-imports.skip>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <!-- Pick up common dependencies for the selected LTS line: https://github.com/jenkinsci/bom#usage -->
+        <groupId>io.jenkins.tools.bom</groupId>
+        <artifactId>bom-${jenkins.baseline}.x</artifactId>
+        <version>5208.vb_69e9d049f68</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+  <dependencies>
     <dependency>
-      <groupId>com.github.spotbugs</groupId>
-      <artifactId>spotbugs-annotations</artifactId>
-      <version>4.8.6</version>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-basic-steps</artifactId>
+      <scope>test</scope>
     </dependency>
-    
     <dependency>
-        <groupId>org.jenkins-ci.plugins</groupId>
-        <artifactId>structs</artifactId>
-        <version>338.v848422169819</version>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-cps</artifactId>
+      <scope>test</scope>
     </dependency>
-    
     <dependency>
-        <groupId>org.jenkins-ci.plugins.workflow</groupId>
-        <artifactId>workflow-step-api</artifactId>
-        <version>657.v03b_e8115821b_</version>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-durable-task-step</artifactId>
+      <scope>test</scope>
     </dependency>
-    
-<dependency>
-    <groupId>io.jenkins.plugins</groupId>
-    <artifactId>font-awesome-api</artifactId>
-    <version>6.5.1-3</version>
-</dependency>
-
-<dependency>
-    <groupId>com.github.ben-manes.caffeine</groupId>
-    <artifactId>caffeine</artifactId>
-    <version>3.1.8</version>
-</dependency>
-
-<dependency>
-    <groupId>io.jenkins.plugins</groupId>
-    <artifactId>caffeine-api</artifactId>
-    <version>3.1.8-133.v17b_1ff2e0599</version>
-</dependency>
-
-<dependency>
-    <groupId>org.jenkins-ci.plugins</groupId>
-    <artifactId>scm-api</artifactId>
-    <version>683.vb_16722fb_b_80b_</version>
-</dependency>
-
-<dependency>
-    <groupId>org.json</groupId>
-    <artifactId>json</artifactId>
-    <version>20240205</version>
-</dependency>
-
-<dependency>
-    <groupId>org.slf4j</groupId>
-    <artifactId>slf4j-api</artifactId>
-    <version>2.0.12</version>
-</dependency>
-
-<dependency>
-    <groupId>com.google.errorprone</groupId>
-    <artifactId>error_prone_annotations</artifactId>
-    <version>2.21.1</version>
-</dependency>
-
-<dependency>
-    <groupId>io.jenkins.plugins</groupId>
-    <artifactId>commons-text-api</artifactId>
-    <version>1.11.0-95.v22a_d30ee5d36</version>
-</dependency>
-    
-</dependencies>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-job</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
   <repositories>
     <repository>
@@ -139,14 +88,4 @@
       <url>https://repo.jenkins-ci.org/public/</url>
     </pluginRepository>
   </pluginRepositories>
-  <!-- If you want to depend on other plugins:
-  <dependencies>
-    <dependency>
-      <groupId>org.jenkins-ci.plugins</groupId>
-      <artifactId>credentials</artifactId>
-      <version>1.9.4</version>
-    </dependency>
-  </dependencies>
-  -->
-
 </project>
