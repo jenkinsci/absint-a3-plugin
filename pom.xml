@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.88</version>
+    <version>5.24</version>
     <relativePath />
   </parent>
 
@@ -16,7 +16,7 @@
   <properties>
     <changelist>1.2.0-SNAPSHOT</changelist>
     <!-- https://www.jenkins.io/doc/developer/plugin-development/choosing-jenkins-baseline/ -->
-    <jenkins.baseline>2.462</jenkins.baseline>
+    <jenkins.baseline>2.492</jenkins.baseline>
     <!-- Baseline Jenkins version you use to build the plugin. Users must have this version or newer to run. -->
     <jenkins.version>${jenkins.baseline}.3</jenkins.version>
  <!--   <maven.test.skip>true</maven.test.skip>
@@ -31,7 +31,7 @@
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
         <artifactId>bom-${jenkins.baseline}.x</artifactId>
-        <version>4228.v0a_71308d905b_</version>
+        <version>5324.v88b_4300d0dd9</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -63,9 +63,8 @@
 </dependency>
     <!-- Override parent spotbugs-annotations dependency and use version as in warnings-ng -->
     <dependency>
-      <groupId>org.jenkins-ci.plugins.workflow</groupId>
-      <artifactId>workflow-basic-steps</artifactId>
-      <scope>test</scope>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
     </dependency>
     <dependency>
         <groupId>org.jenkins-ci.plugins</groupId>
@@ -107,7 +106,6 @@
 <dependency>
     <groupId>org.slf4j</groupId>
     <artifactId>slf4j-api</artifactId>
-    <version>2.0.12</version>
 </dependency>
 
 <dependency>
