@@ -1,1 +1,23 @@
-Jenkins plugin for the a³ (AbsInt Advanced Analyzer) tool suite
+## ⚠️ DEPRECATED - This plugin is no longer maintained
+
+This plugin has been deprecated and removed from the Jenkins Update Center.
+
+### Reason for Deprecation
+
+This plugin has become irrelevant for modern Jenkins usage. It was never compatible with Jenkins Pipelines, which have become the standard approach for Jenkins automation.
+
+Furthermore, the a3 Batch Mode tooling provides extensive flexibility for running analyses directly within Jenkins Pipelines through compact batch mode commands, including automated report generation. The indirect creation of batch mode calls through this graphical Jenkins plugin offers no significant added value compared to calling the batch mode directly in pipeline scripts.
+
+### Recommended Alternative
+
+We recommend using the **a3 Batch Mode tooling directly** in your Jenkins Pipeline scripts. This approach provides:
+- Full compatibility with Jenkins Pipelines
+- Greater flexibility and control
+- Direct integration without additional plugin dependencies
+- Automated report generation
+
+For details on using a3 Batch Mode, please refer to **Section 2.1.3 "Batch Mode"** in the a3 documentation.
+
+---
+
+**Archive Date:** [2026-02-08]
